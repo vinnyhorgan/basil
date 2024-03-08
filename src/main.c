@@ -1,7 +1,16 @@
 #include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <stdbool.h>
+
 #include <SDL2/SDL.h>
 
 #include "lib/wren/wren.h"
+
+#define BASIL_VERSION "0.1.0"
+
+#define WIDTH 320
+#define HEIGHT 240
 
 static void wrenWrite(WrenVM *vm, const char *text)
 {
@@ -38,31 +47,64 @@ int main(int argc, char *argv[])
 
     wrenFreeVM(vm);
 
-    if (SDL_Init(SDL_INIT_VIDEO) < 0)
+    if (SDL_Init(SDL_INIT_VIDEO) != 0)
     {
         printf("Error initializing SDL: %s\n", SDL_GetError());
         return 1;
     }
 
-    SDL_Window *window = SDL_CreateWindow("Basil", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 640, 480, SDL_WINDOW_SHOWN);
+    SDL_Window *window = SDL_CreateWindow("Basil", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, WIDTH * 2, HEIGHT * 2, SDL_WINDOW_RESIZABLE);
     if (window == NULL)
     {
         printf("Error creating window: %s\n", SDL_GetError());
         return 1;
     }
 
+    SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+    if (renderer == NULL)
+    {
+        printf("Error creating renderer: %s\n", SDL_GetError());
+        return 1;
+    }
+
+    SDL_SetWindowMinimumSize(window, WIDTH, HEIGHT);
+    SDL_RenderSetLogicalSize(renderer, WIDTH, HEIGHT);
+
+    SDL_Texture *screen = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, WIDTH, HEIGHT);
+
+    uint32_t *pixels = malloc(WIDTH * HEIGHT * 4);
+
     SDL_Event event;
-    int quit = 0;
+    bool quit = false;
 
     while (!quit)
     {
         while (SDL_PollEvent(&event))
         {
             if (event.type == SDL_QUIT)
-                quit = 1;
+                quit = true;
         }
+
+        for (int y = 0; y < HEIGHT; ++y)
+        {
+            for (int x = 0; x < WIDTH; ++x)
+            {
+                pixels[y * WIDTH + x] = 0xFFFFFFFF;
+            }
+        }
+
+        SDL_UpdateTexture(screen, NULL, pixels, WIDTH * 4);
+
+        SDL_RenderClear(renderer);
+        SDL_RenderCopy(renderer, screen, NULL, NULL);
+        SDL_RenderPresent(renderer);
     }
 
+    free(pixels);
+
+    SDL_DestroyTexture(screen);
+
+    SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
 
     SDL_Quit();
