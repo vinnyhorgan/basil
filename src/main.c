@@ -10,19 +10,29 @@
 
 #define BASIL_VERSION "0.1.0"
 
-#define WIDTH 320
-#define HEIGHT 240
-
 typedef struct
 {
     uint32_t *data;
     int width, height;
 } Bitmap;
 
+typedef struct
+{
+    SDL_Window *window;
+    SDL_Renderer *renderer;
+    SDL_Texture *screen;
+} Window;
+
 static const char *wrenApi =
     "foreign class Bitmap {\n"
     "   construct create(width, height) {}\n"
-    "   foreign test()\n"
+    "   foreign set(x, y, color)\n"
+    "}\n"
+    "\n"
+    "foreign class Window {\n"
+    "   construct create(title, width, height) {}\n"
+    "   foreign update(bitmap)\n"
+    "   foreign poll()\n"
     "}\n";
 
 static void bitmapAllocate(WrenVM *vm)
@@ -30,6 +40,14 @@ static void bitmapAllocate(WrenVM *vm)
     Bitmap *bitmap = (Bitmap *)wrenSetSlotNewForeign(vm, 0, 0, sizeof(Bitmap));
     int width = (int)wrenGetSlotDouble(vm, 1);
     int height = (int)wrenGetSlotDouble(vm, 2);
+
+    bitmap->data = (uint32_t *)malloc(width * height * sizeof(uint32_t));
+    if (bitmap->data == NULL)
+    {
+        wrenSetSlotString(vm, 0, "Error allocating bitmap");
+        wrenAbortFiber(vm, 0);
+        return;
+    }
 
     bitmap->width = width;
     bitmap->height = height;
@@ -46,10 +64,115 @@ static void bitmapFinalize(void *data)
     bitmap->data = NULL;
 }
 
-static void bitmapTest(WrenVM *vm)
+static void bitmapSet(WrenVM *vm)
 {
     Bitmap *bitmap = (Bitmap *)wrenGetSlotForeign(vm, 0);
-    printf("Hello from bitmap!\n");
+    int x = (int)wrenGetSlotDouble(vm, 1);
+    int y = (int)wrenGetSlotDouble(vm, 2);
+    uint32_t color = (uint32_t)wrenGetSlotDouble(vm, 3);
+
+    bitmap->data[y * bitmap->width + x] = color;
+}
+
+static void windowAllocate(WrenVM *vm)
+{
+    Window *window = (Window *)wrenSetSlotNewForeign(vm, 0, 0, sizeof(Window));
+    const char *title = wrenGetSlotString(vm, 1);
+    int width = (int)wrenGetSlotDouble(vm, 2);
+    int height = (int)wrenGetSlotDouble(vm, 3);
+
+    if (SDL_Init(SDL_INIT_VIDEO) != 0)
+    {
+        wrenSetSlotString(vm, 0, "Error initializing SDL");
+        wrenAbortFiber(vm, 0);
+        return;
+    }
+
+    window->window = SDL_CreateWindow(title, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, width, height, SDL_WINDOW_RESIZABLE);
+    if (window->window == NULL)
+    {
+        wrenSetSlotString(vm, 0, "Error creating window");
+        wrenAbortFiber(vm, 0);
+        return;
+    }
+
+    window->renderer = SDL_CreateRenderer(window->window, -1, SDL_RENDERER_ACCELERATED);
+    if (window->renderer == NULL)
+    {
+        wrenSetSlotString(vm, 0, "Error creating renderer");
+        wrenAbortFiber(vm, 0);
+        return;
+    }
+
+    window->screen = SDL_CreateTexture(window->renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, width, height);
+    if (window->screen == NULL)
+    {
+        wrenSetSlotString(vm, 0, "Error creating screen texture");
+        wrenAbortFiber(vm, 0);
+        return;
+    }
+
+    SDL_SetWindowMinimumSize(window->window, width, height);
+    SDL_RenderSetLogicalSize(window->renderer, width, height);
+}
+
+static void windowFinalize(void *data)
+{
+    Window *window = (Window *)data;
+
+    if (window->screen != NULL)
+    {
+        SDL_DestroyTexture(window->screen);
+        window->screen = NULL;
+    }
+
+    if (window->renderer != NULL)
+    {
+        SDL_DestroyRenderer(window->renderer);
+        window->renderer = NULL;
+    }
+
+    if (window->window != NULL)
+    {
+        SDL_DestroyWindow(window->window);
+        window->window = NULL;
+    }
+
+    SDL_Quit();
+}
+
+static void windowUpdate(WrenVM *vm)
+{
+    Window *window = (Window *)wrenGetSlotForeign(vm, 0);
+    Bitmap *bitmap = (Bitmap *)wrenGetSlotForeign(vm, 1);
+
+    SDL_UpdateTexture(window->screen, NULL, bitmap->data, bitmap->width * 4);
+
+    SDL_RenderClear(window->renderer);
+    SDL_RenderCopy(window->renderer, window->screen, NULL, NULL);
+    SDL_RenderPresent(window->renderer);
+}
+
+static void windowPoll(WrenVM *vm)
+{
+    wrenEnsureSlots(vm, 2);
+    wrenSetSlotNewList(vm, 0);
+
+    SDL_Event event;
+    while (SDL_PollEvent(&event) != 0)
+    {
+        switch (event.type)
+        {
+        case SDL_QUIT:
+            wrenSetSlotString(vm, 1, "quit");
+            wrenInsertInList(vm, 0, -1, 1);
+            break;
+        case SDL_KEYDOWN:
+            wrenSetSlotString(vm, 1, "key");
+            wrenInsertInList(vm, 0, -1, 1);
+            break;
+        }
+    }
 }
 
 static char *readFile(const char *path)
@@ -102,8 +225,15 @@ static WrenForeignMethodFn wrenBindForeignMethod(WrenVM *vm, const char *module,
 {
     if (strcmp(className, "Bitmap") == 0)
     {
-        if (strcmp(signature, "test()") == 0)
-            return bitmapTest;
+        if (strcmp(signature, "set(_,_,_)") == 0)
+            return bitmapSet;
+    }
+    else if (strcmp(className, "Window") == 0)
+    {
+        if (strcmp(signature, "update(_)") == 0)
+            return windowUpdate;
+        if (strcmp(signature, "poll()") == 0)
+            return windowPoll;
     }
 
     return NULL;
@@ -117,6 +247,11 @@ static WrenForeignClassMethods wrenBindForeignClass(WrenVM *vm, const char *modu
     {
         methods.allocate = bitmapAllocate;
         methods.finalize = bitmapFinalize;
+    }
+    else if (strcmp(className, "Window") == 0)
+    {
+        methods.allocate = windowAllocate;
+        methods.finalize = windowFinalize;
     }
 
     return methods;
@@ -165,68 +300,6 @@ int main(int argc, char *argv[])
     free(source);
 
     wrenFreeVM(vm);
-
-    if (SDL_Init(SDL_INIT_VIDEO) != 0)
-    {
-        printf("Error initializing SDL: %s\n", SDL_GetError());
-        return 1;
-    }
-
-    SDL_Window *window = SDL_CreateWindow("Basil", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, WIDTH * 2, HEIGHT * 2, SDL_WINDOW_RESIZABLE);
-    if (window == NULL)
-    {
-        printf("Error creating window: %s\n", SDL_GetError());
-        return 1;
-    }
-
-    SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
-    if (renderer == NULL)
-    {
-        printf("Error creating renderer: %s\n", SDL_GetError());
-        return 1;
-    }
-
-    SDL_SetWindowMinimumSize(window, WIDTH, HEIGHT);
-    SDL_RenderSetLogicalSize(renderer, WIDTH, HEIGHT);
-
-    SDL_Texture *screen = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, WIDTH, HEIGHT);
-
-    uint32_t *pixels = malloc(WIDTH * HEIGHT * 4);
-
-    SDL_Event event;
-    bool quit = false;
-
-    while (!quit)
-    {
-        while (SDL_PollEvent(&event))
-        {
-            if (event.type == SDL_QUIT)
-                quit = true;
-        }
-
-        for (int y = 0; y < HEIGHT; ++y)
-        {
-            for (int x = 0; x < WIDTH; ++x)
-            {
-                pixels[y * WIDTH + x] = 0xFFFFFFFF;
-            }
-        }
-
-        SDL_UpdateTexture(screen, NULL, pixels, WIDTH * 4);
-
-        SDL_RenderClear(renderer);
-        SDL_RenderCopy(renderer, screen, NULL, NULL);
-        SDL_RenderPresent(renderer);
-    }
-
-    free(pixels);
-
-    SDL_DestroyTexture(screen);
-
-    SDL_DestroyRenderer(renderer);
-    SDL_DestroyWindow(window);
-
-    SDL_Quit();
 
     return 0;
 }
