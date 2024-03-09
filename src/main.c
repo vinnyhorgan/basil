@@ -10,6 +10,8 @@
 
 #define BASIL_VERSION "0.1.0"
 
+#include "api.wren.inc"
+
 typedef struct
 {
     uint32_t *data;
@@ -23,17 +25,7 @@ typedef struct
     SDL_Texture *screen;
 } Window;
 
-static const char *wrenApi =
-    "foreign class Bitmap {\n"
-    "   construct create(width, height) {}\n"
-    "   foreign set(x, y, color)\n"
-    "}\n"
-    "\n"
-    "foreign class Window {\n"
-    "   construct create(title, width, height) {}\n"
-    "   foreign update(bitmap)\n"
-    "   foreign poll()\n"
-    "}\n";
+static Window *window;
 
 static void bitmapAllocate(WrenVM *vm)
 {
@@ -74,9 +66,24 @@ static void bitmapSet(WrenVM *vm)
     bitmap->data[y * bitmap->width + x] = color;
 }
 
-static void windowAllocate(WrenVM *vm)
+static void bitmapWidth(WrenVM *vm)
 {
-    Window *window = (Window *)wrenSetSlotNewForeign(vm, 0, 0, sizeof(Window));
+    Bitmap *bitmap = (Bitmap *)wrenGetSlotForeign(vm, 0);
+
+    wrenSetSlotDouble(vm, 0, bitmap->width);
+}
+
+static void bitmapHeight(WrenVM *vm)
+{
+    Bitmap *bitmap = (Bitmap *)wrenGetSlotForeign(vm, 0);
+
+    wrenSetSlotDouble(vm, 0, bitmap->height);
+}
+
+static void windowInit(WrenVM *vm)
+{
+    window = (Window *)malloc(sizeof(Window));
+
     const char *title = wrenGetSlotString(vm, 1);
     int width = (int)wrenGetSlotDouble(vm, 2);
     int height = (int)wrenGetSlotDouble(vm, 3);
@@ -116,10 +123,8 @@ static void windowAllocate(WrenVM *vm)
     SDL_RenderSetLogicalSize(window->renderer, width, height);
 }
 
-static void windowFinalize(void *data)
+static void windowQuit(WrenVM *vm)
 {
-    Window *window = (Window *)data;
-
     if (window->screen != NULL)
     {
         SDL_DestroyTexture(window->screen);
@@ -139,11 +144,12 @@ static void windowFinalize(void *data)
     }
 
     SDL_Quit();
+
+    free(window);
 }
 
 static void windowUpdate(WrenVM *vm)
 {
-    Window *window = (Window *)wrenGetSlotForeign(vm, 0);
     Bitmap *bitmap = (Bitmap *)wrenGetSlotForeign(vm, 1);
 
     SDL_UpdateTexture(window->screen, NULL, bitmap->data, bitmap->width * 4);
@@ -216,7 +222,7 @@ static WrenLoadModuleResult wrenLoadModule(WrenVM *vm, const char *name)
     WrenLoadModuleResult result = {0};
 
     if (strcmp(name, "basil") == 0)
-        result.source = wrenApi;
+        result.source = apiModuleSource;
 
     return result;
 }
@@ -225,11 +231,19 @@ static WrenForeignMethodFn wrenBindForeignMethod(WrenVM *vm, const char *module,
 {
     if (strcmp(className, "Bitmap") == 0)
     {
-        if (strcmp(signature, "set(_,_,_)") == 0)
+        if (strcmp(signature, "f_set(_,_,_)") == 0)
             return bitmapSet;
+        if (strcmp(signature, "width") == 0)
+            return bitmapWidth;
+        if (strcmp(signature, "height") == 0)
+            return bitmapHeight;
     }
     else if (strcmp(className, "Window") == 0)
     {
+        if (strcmp(signature, "init(_,_,_)") == 0)
+            return windowInit;
+        if (strcmp(signature, "quit()") == 0)
+            return windowQuit;
         if (strcmp(signature, "update(_)") == 0)
             return windowUpdate;
         if (strcmp(signature, "poll()") == 0)
@@ -247,11 +261,6 @@ static WrenForeignClassMethods wrenBindForeignClass(WrenVM *vm, const char *modu
     {
         methods.allocate = bitmapAllocate;
         methods.finalize = bitmapFinalize;
-    }
-    else if (strcmp(className, "Window") == 0)
-    {
-        methods.allocate = windowAllocate;
-        methods.finalize = windowFinalize;
     }
 
     return methods;
