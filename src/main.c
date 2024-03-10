@@ -9,6 +9,21 @@
 #include "lib/wren/wren.h"
 
 #define BASIL_VERSION "0.1.0"
+#define MAX_PATH_LENGTH 256
+
+#define VM_ABORT(vm, error)              \
+    do                                   \
+    {                                    \
+        wrenSetSlotString(vm, 0, error); \
+        wrenAbortFiber(vm, 0);           \
+    } while (false);
+
+#define ASSERT_SLOT_TYPE(vm, slot, type, fieldName)    \
+    if (wrenGetSlotType(vm, slot) != WREN_TYPE_##type) \
+    {                                                  \
+        VM_ABORT(vm, #fieldName " was not " #type);    \
+        return;                                        \
+    }
 
 #include "api.wren.inc"
 
@@ -30,6 +45,7 @@ static Window *window;
 static int argCount;
 static char **args;
 static int exitCode = 0;
+static char basePath[MAX_PATH_LENGTH];
 
 static void bitmapAllocate(WrenVM *vm)
 {
@@ -40,8 +56,7 @@ static void bitmapAllocate(WrenVM *vm)
     bitmap->data = (uint32_t *)malloc(width * height * sizeof(uint32_t));
     if (bitmap->data == NULL)
     {
-        wrenSetSlotString(vm, 0, "Error allocating bitmap");
-        wrenAbortFiber(vm, 0);
+        VM_ABORT(vm, "Error allocating bitmap");
         return;
     }
 
@@ -109,13 +124,7 @@ static void osArgs(WrenVM *vm)
 
 static void osExit(WrenVM *vm)
 {
-    if (wrenGetSlotType(vm, 1) != WREN_TYPE_NUM)
-    {
-        wrenSetSlotString(vm, 0, "Argument must be a number");
-        wrenAbortFiber(vm, 0);
-        return;
-    }
-
+    ASSERT_SLOT_TYPE(vm, 1, NUM, "code");
     exitCode = (int)wrenGetSlotDouble(vm, 1);
 }
 
@@ -129,16 +138,14 @@ static void windowInit(WrenVM *vm)
 
     if (SDL_Init(SDL_INIT_VIDEO) != 0)
     {
-        wrenSetSlotString(vm, 0, "Error initializing SDL");
-        wrenAbortFiber(vm, 0);
+        VM_ABORT(vm, "Error initializing SDL");
         return;
     }
 
     window->window = SDL_CreateWindow(title, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, width, height, SDL_WINDOW_RESIZABLE);
     if (window->window == NULL)
     {
-        wrenSetSlotString(vm, 0, "Error creating window");
-        wrenAbortFiber(vm, 0);
+        VM_ABORT(vm, "Error creating window");
         return;
     }
 
@@ -146,15 +153,13 @@ static void windowInit(WrenVM *vm)
     if (window->renderer == NULL)
     {
         wrenSetSlotString(vm, 0, "Error creating renderer");
-        wrenAbortFiber(vm, 0);
         return;
     }
 
     window->screen = SDL_CreateTexture(window->renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, width, height);
     if (window->screen == NULL)
     {
-        wrenSetSlotString(vm, 0, "Error creating screen texture");
-        wrenAbortFiber(vm, 0);
+        VM_ABORT(vm, "Error creating screen texture");
         return;
     }
 
@@ -256,12 +261,32 @@ static char *readFile(const char *path)
     return buffer;
 }
 
+static void onComplete(WrenVM *vm, const char *name, WrenLoadModuleResult result)
+{
+    if (result.source)
+        free((void *)result.source);
+}
+
 static WrenLoadModuleResult wrenLoadModule(WrenVM *vm, const char *name)
 {
     WrenLoadModuleResult result = {0};
 
+    if (strcmp(name, "meta") == 0 || strcmp(name, "random") == 0)
+        return result;
+
     if (strcmp(name, "basil") == 0)
+    {
         result.source = apiModuleSource;
+        return result;
+    }
+
+    char fullPath[MAX_PATH_LENGTH];
+    snprintf(fullPath, MAX_PATH_LENGTH, "%s/%s.wren", basePath, name);
+
+    printf("Loading module: %s\n", fullPath);
+
+    result.source = readFile(fullPath);
+    result.onComplete = onComplete;
 
     return result;
 }
@@ -337,8 +362,63 @@ static void wrenError(WrenVM *vm, WrenErrorType type, const char *module, int li
     }
 }
 
+static const char *strprbrk(const char *s, const char *charset)
+{
+    const char *latestMatch = NULL;
+    for (; s = strpbrk(s, charset), s != NULL; latestMatch = s++)
+    {
+    }
+    return latestMatch;
+}
+
 int main(int argc, char *argv[])
 {
+    if (argc < 2)
+    {
+        printf("Usage:\n");
+        printf("\tbasil [file] [arguments...]\n");
+        printf("\tbasil version\n");
+        return 1;
+    }
+
+    if (argc == 2 && strcmp(argv[1], "version") == 0)
+    {
+        printf("basil %s\n", BASIL_VERSION);
+        return 0;
+    }
+
+    const char *sourcePath = argv[1];
+
+    char *source = readFile(sourcePath);
+    if (source == NULL)
+        return 1;
+
+    // find base path from raylib
+
+    if (sourcePath[1] != ':' && sourcePath[0] != '\\' && sourcePath[0] != '/')
+    {
+        basePath[0] = '.';
+        basePath[1] = '/';
+    }
+
+    const char *lastSlash = strprbrk(sourcePath, "\\/");
+    if (lastSlash)
+    {
+        if (lastSlash == sourcePath)
+        {
+            basePath[0] = sourcePath[0];
+            basePath[1] = '\0';
+        }
+        else
+        {
+            char *basePathPtr = basePath;
+            if ((sourcePath[1] != ':') && (sourcePath[0] != '\\') && (sourcePath[0] != '/'))
+                basePathPtr += 2;
+            memcpy(basePathPtr, sourcePath, strlen(sourcePath) - (strlen(lastSlash) - 1));
+            basePath[strlen(sourcePath) - strlen(lastSlash) + (((sourcePath[1] != ':') && (sourcePath[0] != '\\') && (sourcePath[0] != '/')) ? 2 : 0)] = '\0';
+        }
+    }
+
     argCount = argc;
     args = argv;
 
@@ -353,14 +433,9 @@ int main(int argc, char *argv[])
 
     WrenVM *vm = wrenNewVM(&config);
 
-    char *source = readFile("test.wren");
-    if (source == NULL)
-        return 1;
-
     wrenInterpret(vm, "main", source);
 
     free(source);
-
     wrenFreeVM(vm);
 
     return exitCode;
