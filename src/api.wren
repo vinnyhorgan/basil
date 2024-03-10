@@ -2,12 +2,21 @@ foreign class Bitmap {
     construct create(width, height) {}
 
     foreign f_set(x, y, color)
+    foreign f_clear(color)
 
     set(x, y, color) {
         if (color is Color) {
             f_set(x, y, color.toNum)
         } else {
             f_set(x, y, color)
+        }
+    }
+
+    clear(color) {
+        if (color is Color) {
+            f_clear(color.toNum)
+        } else {
+            f_clear(color)
         }
     }
 
@@ -123,6 +132,14 @@ class OS {
 class Window {
     foreign static init(title, width, height)
     foreign static quit()
-    foreign static update(bitmap)
     foreign static poll()
+    foreign static update(bitmap)
+    foreign static tick()
+
+    foreign static time
+    foreign static delta
+    foreign static fps
+    foreign static width
+    foreign static height
+    foreign static title
 }

@@ -38,9 +38,12 @@ typedef struct
     SDL_Window *window;
     SDL_Renderer *renderer;
     SDL_Texture *screen;
+    int screenWidth, screenHeight;
+    uint64_t lastTick;
+    float delta;
 } Window;
 
-static Window *window;
+static Window *window = NULL;
 
 static int argCount;
 static char **args;
@@ -99,6 +102,16 @@ static void bitmapHeight(WrenVM *vm)
     wrenSetSlotDouble(vm, 0, bitmap->height);
 }
 
+static void bitmapClear(WrenVM *vm)
+{
+    Bitmap *bitmap = (Bitmap *)wrenGetSlotForeign(vm, 0);
+    uint32_t color = (uint32_t)wrenGetSlotDouble(vm, 1);
+
+    uint32_t *pixels = bitmap->data;
+    for (int32_t i = 0, n = bitmap->width * bitmap->height; i < n; i++)
+        pixels[i] = color;
+}
+
 static void osName(WrenVM *vm)
 {
     wrenEnsureSlots(vm, 1);
@@ -130,11 +143,27 @@ static void osExit(WrenVM *vm)
 
 static void windowInit(WrenVM *vm)
 {
-    window = (Window *)malloc(sizeof(Window));
+    if (window != NULL)
+    {
+        VM_ABORT(vm, "Window already initialized");
+        return;
+    }
+
+    ASSERT_SLOT_TYPE(vm, 1, STRING, "title");
+    ASSERT_SLOT_TYPE(vm, 2, NUM, "width");
+    ASSERT_SLOT_TYPE(vm, 3, NUM, "height");
 
     const char *title = wrenGetSlotString(vm, 1);
     int width = (int)wrenGetSlotDouble(vm, 2);
     int height = (int)wrenGetSlotDouble(vm, 3);
+
+    if (width < 0 || height < 0)
+    {
+        VM_ABORT(vm, "Window dimensions must be positive");
+        return;
+    }
+
+    window = (Window *)malloc(sizeof(Window));
 
     if (SDL_Init(SDL_INIT_VIDEO) != 0)
     {
@@ -163,12 +192,20 @@ static void windowInit(WrenVM *vm)
         return;
     }
 
+    window->screenWidth = width;
+    window->screenHeight = height;
+    window->lastTick = 0;
+    window->delta = 0;
+
     SDL_SetWindowMinimumSize(window->window, width, height);
     SDL_RenderSetLogicalSize(window->renderer, width, height);
 }
 
 static void windowQuit(WrenVM *vm)
 {
+    if (window == NULL)
+        return;
+
     if (window->screen != NULL)
     {
         SDL_DestroyTexture(window->screen);
@@ -187,24 +224,19 @@ static void windowQuit(WrenVM *vm)
         window->window = NULL;
     }
 
-    SDL_Quit();
-
     free(window);
-}
 
-static void windowUpdate(WrenVM *vm)
-{
-    Bitmap *bitmap = (Bitmap *)wrenGetSlotForeign(vm, 1);
-
-    SDL_UpdateTexture(window->screen, NULL, bitmap->data, bitmap->width * 4);
-
-    SDL_RenderClear(window->renderer);
-    SDL_RenderCopy(window->renderer, window->screen, NULL, NULL);
-    SDL_RenderPresent(window->renderer);
+    SDL_Quit();
 }
 
 static void windowPoll(WrenVM *vm)
 {
+    if (window == NULL)
+    {
+        VM_ABORT(vm, "Window not initialized");
+        return;
+    }
+
     wrenEnsureSlots(vm, 2);
     wrenSetSlotNewList(vm, 0);
 
@@ -223,6 +255,139 @@ static void windowPoll(WrenVM *vm)
             break;
         }
     }
+}
+
+static void windowUpdate(WrenVM *vm)
+{
+    if (window == NULL)
+    {
+        VM_ABORT(vm, "Window not initialized");
+        return;
+    }
+
+    ASSERT_SLOT_TYPE(vm, 1, FOREIGN, "bitmap");
+
+    Bitmap *bitmap = (Bitmap *)wrenGetSlotForeign(vm, 1);
+
+    if (bitmap->width != window->screenWidth || bitmap->height != window->screenHeight)
+    {
+        SDL_DestroyTexture(window->screen);
+
+        window->screen = SDL_CreateTexture(window->renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, bitmap->width, bitmap->height);
+        if (window->screen == NULL)
+        {
+            VM_ABORT(vm, "Error creating screen texture");
+            return;
+        }
+
+        window->screenWidth = bitmap->width;
+        window->screenHeight = bitmap->height;
+
+        SDL_RenderSetLogicalSize(window->renderer, bitmap->width, bitmap->height);
+    }
+
+    SDL_UpdateTexture(window->screen, NULL, bitmap->data, bitmap->width * 4);
+
+    SDL_RenderClear(window->renderer);
+    SDL_RenderCopy(window->renderer, window->screen, NULL, NULL);
+    SDL_RenderPresent(window->renderer);
+}
+
+static void windowTick(WrenVM *vm)
+{
+    if (window == NULL)
+    {
+        VM_ABORT(vm, "Window not initialized");
+        return;
+    }
+
+    uint64_t now = SDL_GetPerformanceCounter();
+
+    if (window->lastTick == 0)
+        window->lastTick = now;
+
+    window->delta = (now - window->lastTick) / (float)SDL_GetPerformanceFrequency();
+    window->lastTick = now;
+}
+
+static void windowTime(WrenVM *vm)
+{
+    if (window == NULL)
+    {
+        VM_ABORT(vm, "Window not initialized");
+        return;
+    }
+
+    wrenEnsureSlots(vm, 1);
+    wrenSetSlotDouble(vm, 0, SDL_GetTicks());
+}
+
+static void windowDelta(WrenVM *vm)
+{
+    if (window == NULL)
+    {
+        VM_ABORT(vm, "Window not initialized");
+        return;
+    }
+
+    wrenEnsureSlots(vm, 1);
+    wrenSetSlotDouble(vm, 0, window->delta);
+}
+
+static void windowFps(WrenVM *vm)
+{
+    if (window == NULL)
+    {
+        VM_ABORT(vm, "Window not initialized");
+        return;
+    }
+
+    wrenEnsureSlots(vm, 1);
+    wrenSetSlotDouble(vm, 0, 1 / window->delta);
+}
+
+static void windowWidth(WrenVM *vm)
+{
+    if (window == NULL)
+    {
+        VM_ABORT(vm, "Window not initialized");
+        return;
+    }
+
+    wrenEnsureSlots(vm, 1);
+
+    int width;
+    SDL_GetWindowSize(window->window, &width, NULL);
+
+    wrenSetSlotDouble(vm, 0, width);
+}
+
+static void windowHeight(WrenVM *vm)
+{
+    if (window == NULL)
+    {
+        VM_ABORT(vm, "Window not initialized");
+        return;
+    }
+
+    wrenEnsureSlots(vm, 1);
+
+    int height;
+    SDL_GetWindowSize(window->window, NULL, &height);
+
+    wrenSetSlotDouble(vm, 0, height);
+}
+
+static void windowTitle(WrenVM *vm)
+{
+    if (window == NULL)
+    {
+        VM_ABORT(vm, "Window not initialized");
+        return;
+    }
+
+    wrenEnsureSlots(vm, 1);
+    wrenSetSlotString(vm, 0, SDL_GetWindowTitle(window->window));
 }
 
 static char *readFile(const char *path)
@@ -283,8 +448,6 @@ static WrenLoadModuleResult wrenLoadModule(WrenVM *vm, const char *name)
     char fullPath[MAX_PATH_LENGTH];
     snprintf(fullPath, MAX_PATH_LENGTH, "%s/%s.wren", basePath, name);
 
-    printf("Loading module: %s\n", fullPath);
-
     result.source = readFile(fullPath);
     result.onComplete = onComplete;
 
@@ -301,6 +464,8 @@ static WrenForeignMethodFn wrenBindForeignMethod(WrenVM *vm, const char *module,
             return bitmapWidth;
         if (strcmp(signature, "height") == 0)
             return bitmapHeight;
+        if (strcmp(signature, "f_clear(_)") == 0)
+            return bitmapClear;
     }
     else if (strcmp(className, "OS") == 0)
     {
@@ -319,10 +484,24 @@ static WrenForeignMethodFn wrenBindForeignMethod(WrenVM *vm, const char *module,
             return windowInit;
         if (strcmp(signature, "quit()") == 0)
             return windowQuit;
-        if (strcmp(signature, "update(_)") == 0)
-            return windowUpdate;
         if (strcmp(signature, "poll()") == 0)
             return windowPoll;
+        if (strcmp(signature, "update(_)") == 0)
+            return windowUpdate;
+        if (strcmp(signature, "tick()") == 0)
+            return windowTick;
+        if (strcmp(signature, "time") == 0)
+            return windowTime;
+        if (strcmp(signature, "delta") == 0)
+            return windowDelta;
+        if (strcmp(signature, "fps") == 0)
+            return windowFps;
+        if (strcmp(signature, "width") == 0)
+            return windowWidth;
+        if (strcmp(signature, "height") == 0)
+            return windowHeight;
+        if (strcmp(signature, "title") == 0)
+            return windowTitle;
     }
 
     return NULL;
@@ -433,7 +612,7 @@ int main(int argc, char *argv[])
 
     WrenVM *vm = wrenNewVM(&config);
 
-    wrenInterpret(vm, "main", source);
+    wrenInterpret(vm, sourcePath, source);
 
     free(source);
     wrenFreeVM(vm);
