@@ -129,16 +129,22 @@ class OS {
     }
 }
 
+foreign class Timer {
+    construct new() {}
+
+    foreign tick()
+    foreign tick(framerate)
+
+    foreign time
+    foreign delta
+}
+
 class Window {
     foreign static init(title, width, height)
     foreign static quit()
     foreign static poll()
     foreign static update(bitmap)
-    foreign static tick()
 
-    foreign static time
-    foreign static delta
-    foreign static fps
     foreign static width
     foreign static height
     foreign static title

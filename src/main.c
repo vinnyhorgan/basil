@@ -35,12 +35,17 @@ typedef struct
 
 typedef struct
 {
+    uint64_t start;
+    uint64_t lastTick;
+    float delta;
+} Timer;
+
+typedef struct
+{
     SDL_Window *window;
     SDL_Renderer *renderer;
     SDL_Texture *screen;
     int screenWidth, screenHeight;
-    uint64_t lastTick;
-    float delta;
 } Window;
 
 static Window *window = NULL;
@@ -141,6 +146,55 @@ static void osExit(WrenVM *vm)
     exitCode = (int)wrenGetSlotDouble(vm, 1);
 }
 
+static void timerAllocate(WrenVM *vm)
+{
+    Timer *timer = (Timer *)wrenSetSlotNewForeign(vm, 0, 0, sizeof(Timer));
+
+    timer->start = SDL_GetPerformanceCounter();
+    timer->lastTick = SDL_GetPerformanceCounter();
+    timer->delta = 0;
+}
+
+static void timerTick(WrenVM *vm)
+{
+    Timer *timer = (Timer *)wrenGetSlotForeign(vm, 0);
+
+    uint64_t now = SDL_GetPerformanceCounter();
+    timer->delta = (now - timer->lastTick) / (float)SDL_GetPerformanceFrequency();
+    timer->lastTick = now;
+}
+
+static void timerTickFramerate(WrenVM *vm)
+{
+    Timer *timer = (Timer *)wrenGetSlotForeign(vm, 0);
+
+    ASSERT_SLOT_TYPE(vm, 1, NUM, "framerate");
+
+    int framerate = (int)wrenGetSlotDouble(vm, 1);
+
+    uint64_t now = SDL_GetPerformanceCounter();
+    timer->delta = (now - timer->lastTick) / (float)SDL_GetPerformanceFrequency();
+    timer->lastTick = now;
+
+    SDL_Delay(1000 / framerate);
+}
+
+static void timerTime(WrenVM *vm)
+{
+    Timer *timer = (Timer *)wrenGetSlotForeign(vm, 0);
+
+    float passed = (SDL_GetPerformanceCounter() - timer->start) / (float)SDL_GetPerformanceFrequency();
+
+    wrenSetSlotDouble(vm, 0, passed);
+}
+
+static void timerDelta(WrenVM *vm)
+{
+    Timer *timer = (Timer *)wrenGetSlotForeign(vm, 0);
+
+    wrenSetSlotDouble(vm, 0, timer->delta);
+}
+
 static void windowInit(WrenVM *vm)
 {
     if (window != NULL)
@@ -194,8 +248,6 @@ static void windowInit(WrenVM *vm)
 
     window->screenWidth = width;
     window->screenHeight = height;
-    window->lastTick = 0;
-    window->delta = 0;
 
     SDL_SetWindowMinimumSize(window->window, width, height);
     SDL_RenderSetLogicalSize(window->renderer, width, height);
@@ -291,59 +343,6 @@ static void windowUpdate(WrenVM *vm)
     SDL_RenderClear(window->renderer);
     SDL_RenderCopy(window->renderer, window->screen, NULL, NULL);
     SDL_RenderPresent(window->renderer);
-}
-
-static void windowTick(WrenVM *vm)
-{
-    if (window == NULL)
-    {
-        VM_ABORT(vm, "Window not initialized");
-        return;
-    }
-
-    uint64_t now = SDL_GetPerformanceCounter();
-
-    if (window->lastTick == 0)
-        window->lastTick = now;
-
-    window->delta = (now - window->lastTick) / (float)SDL_GetPerformanceFrequency();
-    window->lastTick = now;
-}
-
-static void windowTime(WrenVM *vm)
-{
-    if (window == NULL)
-    {
-        VM_ABORT(vm, "Window not initialized");
-        return;
-    }
-
-    wrenEnsureSlots(vm, 1);
-    wrenSetSlotDouble(vm, 0, SDL_GetTicks());
-}
-
-static void windowDelta(WrenVM *vm)
-{
-    if (window == NULL)
-    {
-        VM_ABORT(vm, "Window not initialized");
-        return;
-    }
-
-    wrenEnsureSlots(vm, 1);
-    wrenSetSlotDouble(vm, 0, window->delta);
-}
-
-static void windowFps(WrenVM *vm)
-{
-    if (window == NULL)
-    {
-        VM_ABORT(vm, "Window not initialized");
-        return;
-    }
-
-    wrenEnsureSlots(vm, 1);
-    wrenSetSlotDouble(vm, 0, 1 / window->delta);
 }
 
 static void windowWidth(WrenVM *vm)
@@ -478,6 +477,17 @@ static WrenForeignMethodFn wrenBindForeignMethod(WrenVM *vm, const char *module,
         if (strcmp(signature, "f_exit(_)") == 0)
             return osExit;
     }
+    else if (strcmp(className, "Timer") == 0)
+    {
+        if (strcmp(signature, "tick()") == 0)
+            return timerTick;
+        if (strcmp(signature, "tick(_)") == 0)
+            return timerTickFramerate;
+        if (strcmp(signature, "time") == 0)
+            return timerTime;
+        if (strcmp(signature, "delta") == 0)
+            return timerDelta;
+    }
     else if (strcmp(className, "Window") == 0)
     {
         if (strcmp(signature, "init(_,_,_)") == 0)
@@ -488,14 +498,6 @@ static WrenForeignMethodFn wrenBindForeignMethod(WrenVM *vm, const char *module,
             return windowPoll;
         if (strcmp(signature, "update(_)") == 0)
             return windowUpdate;
-        if (strcmp(signature, "tick()") == 0)
-            return windowTick;
-        if (strcmp(signature, "time") == 0)
-            return windowTime;
-        if (strcmp(signature, "delta") == 0)
-            return windowDelta;
-        if (strcmp(signature, "fps") == 0)
-            return windowFps;
         if (strcmp(signature, "width") == 0)
             return windowWidth;
         if (strcmp(signature, "height") == 0)
@@ -515,6 +517,10 @@ static WrenForeignClassMethods wrenBindForeignClass(WrenVM *vm, const char *modu
     {
         methods.allocate = bitmapAllocate;
         methods.finalize = bitmapFinalize;
+    }
+    else if (strcmp(className, "Timer") == 0)
+    {
+        methods.allocate = timerAllocate;
     }
 
     return methods;
