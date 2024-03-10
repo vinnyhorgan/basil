@@ -104,6 +104,22 @@ class Color {
     static peach { Color.new(255, 204, 170) }
 }
 
+class OS {
+    foreign static name
+    foreign static basilVersion
+    foreign static args
+    foreign static f_exit(code)
+
+    static exit(code) {
+        f_exit(code)
+        Fiber.suspend()
+    }
+
+    static exit() {
+        exit(0)
+    }
+}
+
 class Window {
     foreign static init(title, width, height)
     foreign static quit()

@@ -27,6 +27,10 @@ typedef struct
 
 static Window *window;
 
+static int argCount;
+static char **args;
+static int exitCode = 0;
+
 static void bitmapAllocate(WrenVM *vm)
 {
     Bitmap *bitmap = (Bitmap *)wrenSetSlotNewForeign(vm, 0, 0, sizeof(Bitmap));
@@ -78,6 +82,41 @@ static void bitmapHeight(WrenVM *vm)
     Bitmap *bitmap = (Bitmap *)wrenGetSlotForeign(vm, 0);
 
     wrenSetSlotDouble(vm, 0, bitmap->height);
+}
+
+static void osName(WrenVM *vm)
+{
+    wrenEnsureSlots(vm, 1);
+    wrenSetSlotString(vm, 0, SDL_GetPlatform());
+}
+
+static void osBasilVersion(WrenVM *vm)
+{
+    wrenEnsureSlots(vm, 1);
+    wrenSetSlotString(vm, 0, BASIL_VERSION);
+}
+
+static void osArgs(WrenVM *vm)
+{
+    wrenEnsureSlots(vm, 2);
+    wrenSetSlotNewList(vm, 0);
+    for (int i = 0; i < argCount; i++)
+    {
+        wrenSetSlotString(vm, 1, args[i]);
+        wrenInsertInList(vm, 0, i, 1);
+    }
+}
+
+static void osExit(WrenVM *vm)
+{
+    if (wrenGetSlotType(vm, 1) != WREN_TYPE_NUM)
+    {
+        wrenSetSlotString(vm, 0, "Argument must be a number");
+        wrenAbortFiber(vm, 0);
+        return;
+    }
+
+    exitCode = (int)wrenGetSlotDouble(vm, 1);
 }
 
 static void windowInit(WrenVM *vm)
@@ -238,6 +277,17 @@ static WrenForeignMethodFn wrenBindForeignMethod(WrenVM *vm, const char *module,
         if (strcmp(signature, "height") == 0)
             return bitmapHeight;
     }
+    else if (strcmp(className, "OS") == 0)
+    {
+        if (strcmp(signature, "name") == 0)
+            return osName;
+        if (strcmp(signature, "basilVersion") == 0)
+            return osBasilVersion;
+        if (strcmp(signature, "args") == 0)
+            return osArgs;
+        if (strcmp(signature, "f_exit(_)") == 0)
+            return osExit;
+    }
     else if (strcmp(className, "Window") == 0)
     {
         if (strcmp(signature, "init(_,_,_)") == 0)
@@ -289,6 +339,9 @@ static void wrenError(WrenVM *vm, WrenErrorType type, const char *module, int li
 
 int main(int argc, char *argv[])
 {
+    argCount = argc;
+    args = argv;
+
     WrenConfiguration config;
     wrenInitConfiguration(&config);
 
@@ -310,5 +363,5 @@ int main(int argc, char *argv[])
 
     wrenFreeVM(vm);
 
-    return 0;
+    return exitCode;
 }
