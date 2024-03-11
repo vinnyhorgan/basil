@@ -37,7 +37,7 @@ typedef struct
 {
     uint64_t start;
     uint64_t lastTick;
-    float delta;
+    double delta;
 } Timer;
 
 typedef struct
@@ -160,7 +160,7 @@ static void timerTick(WrenVM *vm)
     Timer *timer = (Timer *)wrenGetSlotForeign(vm, 0);
 
     uint64_t now = SDL_GetPerformanceCounter();
-    timer->delta = (now - timer->lastTick) / (float)SDL_GetPerformanceFrequency();
+    timer->delta = (double)(now - timer->lastTick) / (double)SDL_GetPerformanceFrequency();
     timer->lastTick = now;
 }
 
@@ -171,12 +171,23 @@ static void timerTickFramerate(WrenVM *vm)
     ASSERT_SLOT_TYPE(vm, 1, NUM, "framerate");
 
     int framerate = (int)wrenGetSlotDouble(vm, 1);
+    double targetFrameTime = 1.0 / framerate;
 
     uint64_t now = SDL_GetPerformanceCounter();
-    timer->delta = (now - timer->lastTick) / (float)SDL_GetPerformanceFrequency();
-    timer->lastTick = now;
+    double elapsed = (double)(now - timer->lastTick) / (double)SDL_GetPerformanceFrequency();
 
-    SDL_Delay(1000 / framerate);
+    if (elapsed < targetFrameTime)
+    {
+        double delayTime = targetFrameTime - elapsed;
+        uint32_t delayMS = (uint32_t)(delayTime * 1000.0);
+        SDL_Delay(delayMS);
+
+        now = SDL_GetPerformanceCounter();
+        elapsed = (double)(now - timer->lastTick) / (double)SDL_GetPerformanceFrequency();
+    }
+
+    timer->delta = elapsed;
+    timer->lastTick = now;
 }
 
 static void timerTime(WrenVM *vm)
