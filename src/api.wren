@@ -1,8 +1,15 @@
 foreign class Bitmap {
-    construct create(width, height) {}
+    foreign construct create(width, height)
+    foreign construct create(image)
 
     foreign f_set(x, y, color)
+    foreign f_get(x, y)
     foreign f_clear(color)
+    foreign f_rect(x, y, width, height, color)
+
+    foreign blit(bitmap, x, y)
+
+    foreign f_blitKey(bitmap, x, y, key)
 
     set(x, y, color) {
         if (color is Color) {
@@ -12,11 +19,33 @@ foreign class Bitmap {
         }
     }
 
+    get(x, y) { Color.fromNum(f_get(x, y)) }
+
     clear(color) {
         if (color is Color) {
             f_clear(color.toNum)
         } else {
             f_clear(color)
+        }
+    }
+
+    clear() {
+        f_clear(0xFF000000)
+    }
+
+    rect(x, y, width, height, key) {
+        if (color is Color) {
+            f_rect(x, y, width, height, key.toNum)
+        } else {
+            f_rect(x, y, width, height, key)
+        }
+    }
+
+    blit(bitmap, x, y, key) {
+        if (key is Color) {
+            f_blitKey(bitmap, x, y, key.toNum)
+        } else {
+            f_blitKey(bitmap, x, y, key)
         }
     }
 
@@ -47,10 +76,10 @@ class Color {
 
     toNum { a << 24 | r << 16 | g << 8 | b }
     static fromNum(v) {
-        var r = v & 0xFF
-        var g = (v >> 8) & 0xFF
-        var b = (v >> 16) & 0xFF
-        var a = (v >> 24) & 0xFF
+        var a = v & 0xFF
+        var r = (v >> 8) & 0xFF
+        var g = (v >> 16) & 0xFF
+        var b = (v >> 24) & 0xFF
         return Color.new(r, g, b, a)
     }
 
