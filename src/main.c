@@ -49,6 +49,12 @@ typedef struct
     SDL_Renderer *renderer;
     SDL_Texture *screen;
     int screenWidth, screenHeight;
+    bool closed;
+    SDL_Scancode keysHeld[SDL_NUM_SCANCODES];
+    SDL_Scancode keysPressed[SDL_NUM_SCANCODES];
+    bool mouseHeld[5];
+    bool mousePressed[5];
+    int mouseX, mouseY;
 } Window;
 
 static Window *window = NULL;
@@ -513,6 +519,7 @@ static void windowInit(WrenVM *vm)
 
     window->screenWidth = width;
     window->screenHeight = height;
+    window->closed = false;
 
     SDL_SetWindowMinimumSize(window->window, width, height);
     SDL_RenderSetLogicalSize(window->renderer, width, height);
@@ -544,34 +551,6 @@ static void windowQuit(WrenVM *vm)
     free(window);
 
     SDL_Quit();
-}
-
-static void windowPoll(WrenVM *vm)
-{
-    if (window == NULL)
-    {
-        VM_ABORT(vm, "Window not initialized");
-        return;
-    }
-
-    wrenEnsureSlots(vm, 2);
-    wrenSetSlotNewList(vm, 0);
-
-    SDL_Event event;
-    while (SDL_PollEvent(&event) != 0)
-    {
-        switch (event.type)
-        {
-        case SDL_QUIT:
-            wrenSetSlotString(vm, 1, "quit");
-            wrenInsertInList(vm, 0, -1, 1);
-            break;
-        case SDL_KEYDOWN:
-            wrenSetSlotString(vm, 1, "key");
-            wrenInsertInList(vm, 0, -1, 1);
-            break;
-        }
-    }
 }
 
 static void windowUpdate(WrenVM *vm)
@@ -608,6 +587,106 @@ static void windowUpdate(WrenVM *vm)
     SDL_RenderClear(window->renderer);
     SDL_RenderCopy(window->renderer, window->screen, NULL, NULL);
     SDL_RenderPresent(window->renderer);
+
+    for (int i = 0; i < SDL_NUM_SCANCODES; i++)
+        window->keysPressed[i] = false;
+
+    for (int i = 0; i < 5; i++)
+        window->mousePressed[i] = false;
+
+    SDL_Event event;
+    while (SDL_PollEvent(&event))
+    {
+        if (event.type == SDL_QUIT)
+        {
+            window->closed = true;
+        }
+        else if (event.type == SDL_KEYDOWN && event.key.repeat == 0)
+        {
+            window->keysHeld[event.key.keysym.scancode] = true;
+            window->keysPressed[event.key.keysym.scancode] = true;
+        }
+        else if (event.type == SDL_KEYUP)
+        {
+            window->keysHeld[event.key.keysym.scancode] = false;
+        }
+        else if (event.type == SDL_MOUSEBUTTONDOWN)
+        {
+            window->mouseHeld[event.button.button] = true;
+            window->mousePressed[event.button.button] = true;
+        }
+        else if (event.type == SDL_MOUSEBUTTONUP)
+        {
+            window->mouseHeld[event.button.button] = false;
+        }
+        else if (event.type == SDL_MOUSEMOTION)
+        {
+            window->mouseX = event.motion.x;
+            window->mouseY = event.motion.y;
+        }
+    }
+}
+
+static void windowKeyHeld(WrenVM *vm)
+{
+    if (window == NULL)
+    {
+        VM_ABORT(vm, "Window not initialized");
+        return;
+    }
+
+    ASSERT_SLOT_TYPE(vm, 1, STRING, "key");
+
+    const char *key = wrenGetSlotString(vm, 1);
+    SDL_KeyCode sdlKey = SDL_GetScancodeFromName(key);
+
+    wrenSetSlotBool(vm, 0, window->keysHeld[sdlKey]);
+}
+
+static void windowKeyPressed(WrenVM *vm)
+{
+    if (window == NULL)
+    {
+        VM_ABORT(vm, "Window not initialized");
+        return;
+    }
+
+    ASSERT_SLOT_TYPE(vm, 1, STRING, "key");
+
+    const char *key = wrenGetSlotString(vm, 1);
+    SDL_KeyCode sdlKey = SDL_GetScancodeFromName(key);
+
+    wrenSetSlotBool(vm, 0, window->keysPressed[sdlKey]);
+}
+
+static void windowMouseHeld(WrenVM *vm)
+{
+    if (window == NULL)
+    {
+        VM_ABORT(vm, "Window not initialized");
+        return;
+    }
+
+    ASSERT_SLOT_TYPE(vm, 1, NUM, "button");
+
+    int button = (int)wrenGetSlotDouble(vm, 1);
+
+    wrenSetSlotBool(vm, 0, window->mouseHeld[button]);
+}
+
+static void windowMousePressed(WrenVM *vm)
+{
+    if (window == NULL)
+    {
+        VM_ABORT(vm, "Window not initialized");
+        return;
+    }
+
+    ASSERT_SLOT_TYPE(vm, 1, NUM, "button");
+
+    int button = (int)wrenGetSlotDouble(vm, 1);
+
+    wrenSetSlotBool(vm, 0, window->mousePressed[button]);
 }
 
 static void windowWidth(WrenVM *vm)
@@ -652,6 +731,42 @@ static void windowTitle(WrenVM *vm)
 
     wrenEnsureSlots(vm, 1);
     wrenSetSlotString(vm, 0, SDL_GetWindowTitle(window->window));
+}
+
+static void windowClosed(WrenVM *vm)
+{
+    if (window == NULL)
+    {
+        VM_ABORT(vm, "Window not initialized");
+        return;
+    }
+
+    wrenEnsureSlots(vm, 1);
+    wrenSetSlotBool(vm, 0, window->closed);
+}
+
+static void windowMouseX(WrenVM *vm)
+{
+    if (window == NULL)
+    {
+        VM_ABORT(vm, "Window not initialized");
+        return;
+    }
+
+    wrenEnsureSlots(vm, 1);
+    wrenSetSlotDouble(vm, 0, window->mouseX);
+}
+
+static void windowMouseY(WrenVM *vm)
+{
+    if (window == NULL)
+    {
+        VM_ABORT(vm, "Window not initialized");
+        return;
+    }
+
+    wrenEnsureSlots(vm, 1);
+    wrenSetSlotDouble(vm, 0, window->mouseY);
 }
 
 static char *readFile(const char *path)
@@ -771,16 +886,28 @@ static WrenForeignMethodFn wrenBindForeignMethod(WrenVM *vm, const char *module,
             return windowInit;
         if (strcmp(signature, "quit()") == 0)
             return windowQuit;
-        if (strcmp(signature, "poll()") == 0)
-            return windowPoll;
         if (strcmp(signature, "update(_)") == 0)
             return windowUpdate;
+        if (strcmp(signature, "keyHeld(_)") == 0)
+            return windowKeyHeld;
+        if (strcmp(signature, "keyPressed(_)") == 0)
+            return windowKeyPressed;
+        if (strcmp(signature, "mouseHeld(_)") == 0)
+            return windowMouseHeld;
+        if (strcmp(signature, "mousePressed(_)") == 0)
+            return windowMousePressed;
         if (strcmp(signature, "width") == 0)
             return windowWidth;
         if (strcmp(signature, "height") == 0)
             return windowHeight;
         if (strcmp(signature, "title") == 0)
             return windowTitle;
+        if (strcmp(signature, "closed") == 0)
+            return windowClosed;
+        if (strcmp(signature, "mouseX") == 0)
+            return windowMouseX;
+        if (strcmp(signature, "mouseY") == 0)
+            return windowMouseY;
     }
 
     return NULL;

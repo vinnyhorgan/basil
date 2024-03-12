@@ -171,10 +171,16 @@ foreign class Timer {
 class Window {
     foreign static init(title, width, height)
     foreign static quit()
-    foreign static poll()
     foreign static update(bitmap)
+    foreign static keyHeld(key)
+    foreign static keyPressed(key)
+    foreign static mouseHeld(button)
+    foreign static mousePressed(button)
 
     foreign static width
     foreign static height
     foreign static title
+    foreign static closed
+    foreign static mouseX
+    foreign static mouseY
 }
