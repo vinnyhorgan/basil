@@ -1,4 +1,4 @@
-foreign class Bitmap {
+foreign class Image {
     foreign construct create(width, height)
     foreign construct create(image)
 
@@ -7,9 +7,12 @@ foreign class Bitmap {
     foreign f_clear(color)
     foreign f_rect(x, y, width, height, color)
 
-    foreign blit(bitmap, x, y)
+    foreign blit(image, x, y)
+    foreign blit(image, dstX, dstY, srcX, srcY, srcWidth, srcHeight)
 
-    foreign f_blitKey(bitmap, x, y, key)
+    foreign f_blit(image, x, y, key)
+    foreign f_blit(image, dstX, dstY, srcX, srcY, srcWidth, srcHeight, key)
+    foreign f_blit(image, dstX, dstY, srcX, srcY, srcWidth, srcHeight, key, tint)
 
     set(x, y, color) {
         if (color is Color) {
@@ -41,11 +44,27 @@ foreign class Bitmap {
         }
     }
 
-    blit(bitmap, x, y, key) {
+    blit(image, x, y, key) {
         if (key is Color) {
-            f_blitKey(bitmap, x, y, key.toNum)
+            f_blit(image, x, y, key.toNum)
         } else {
-            f_blitKey(bitmap, x, y, key)
+            f_blit(image, x, y, key)
+        }
+    }
+
+    blit(image, dstX, dstY, srcX, srcY, srcWidth, srcHeight, key) {
+        if (key is Color) {
+            f_blit(image, dstX, dstY, srcX, srcY, srcWidth, srcHeight, key.toNum)
+        } else {
+            f_blit(image, dstX, dstY, srcX, srcY, srcWidth, srcHeight, key)
+        }
+    }
+
+    blit(image, dstX, dstY, srcX, srcY, srcWidth, srcHeight, key, tint) {
+        if (key is Color && tint is Color) {
+            f_blit(image, dstX, dstY, srcX, srcY, srcWidth, srcHeight, key.toNum, tint.toNum)
+        } else {
+            f_blit(image, dstX, dstY, srcX, srcY, srcWidth, srcHeight, key, tint)
         }
     }
 
@@ -171,7 +190,7 @@ foreign class Timer {
 class Window {
     foreign static init(title, width, height)
     foreign static quit()
-    foreign static update(bitmap)
+    foreign static update(image)
     foreign static keyHeld(key)
     foreign static keyPressed(key)
     foreign static mouseHeld(button)
