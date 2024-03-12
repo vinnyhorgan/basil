@@ -16,6 +16,8 @@ static const char* apiModuleSource =
 "    foreign f_blit(image, dstX, dstY, srcX, srcY, srcWidth, srcHeight, key)\n"
 "    foreign f_blit(image, dstX, dstY, srcX, srcY, srcWidth, srcHeight, key, tint)\n"
 "\n"
+"    foreign blitAlpha(image, x, y)\n"
+"\n"
 "    set(x, y, color) {\n"
 "        if (color is Color) {\n"
 "            f_set(x, y, color.toNum)\n"

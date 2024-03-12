@@ -304,6 +304,81 @@ static void imageBlit(WrenVM *vm)
     }
 }
 
+static void imageBlitAlpha(WrenVM *vm)
+{
+    Image *image = (Image *)wrenGetSlotForeign(vm, 0);
+
+    ASSERT_SLOT_TYPE(vm, 1, FOREIGN, "image");
+    ASSERT_SLOT_TYPE(vm, 2, NUM, "x");
+    ASSERT_SLOT_TYPE(vm, 3, NUM, "y");
+
+    Image *other = (Image *)wrenGetSlotForeign(vm, 1);
+    int x = (int)wrenGetSlotDouble(vm, 2);
+    int y = (int)wrenGetSlotDouble(vm, 3);
+
+    int dst_x1 = x;
+    int dst_y1 = y;
+    int dst_x2 = x + other->width - 1;
+    int dst_y2 = y + other->height - 1;
+    int src_x1 = 0;
+    int src_y1 = 0;
+
+    if (dst_x1 >= image->width || dst_x2 < 0 || dst_y1 >= image->height || dst_y2 < 0)
+    {
+        VM_ABORT(vm, "Blit out of bounds");
+        return;
+    }
+
+    if (dst_x1 < 0)
+    {
+        src_x1 -= dst_x1;
+        dst_x1 = 0;
+    }
+    if (dst_y1 < 0)
+    {
+        src_y1 -= dst_y1;
+        dst_y1 = 0;
+    }
+    if (dst_x2 >= image->width)
+        dst_x2 = image->width - 1;
+    if (dst_y2 >= image->height)
+        dst_y2 = image->height - 1;
+
+    int clipped_width = dst_x2 - dst_x1 + 1;
+    int dst_next_row = image->width - clipped_width;
+    int src_next_row = other->width - clipped_width;
+    uint32_t *dst_pixel = image->data + dst_y1 * image->width + dst_x1;
+    uint32_t *src_pixel = other->data + src_y1 * other->width + src_x1;
+
+    for (y = dst_y1; y <= dst_y2; y++)
+    {
+        for (int i = 0; i < clipped_width; i++)
+        {
+            uint32_t src_color = *src_pixel;
+            uint32_t dst_color = *dst_pixel;
+
+            // Extract alpha channel
+            uint8_t src_alpha = (src_color >> 24) & 0xFF;
+            uint8_t dst_alpha = (dst_color >> 24) & 0xFF;
+
+            // Alpha blending calculation
+            uint8_t blended_alpha = src_alpha + (dst_alpha * (255 - src_alpha) / 255);
+            uint8_t blended_red = ((src_color >> 16) & 0xFF) * src_alpha / 255 + ((dst_color >> 16) & 0xFF) * dst_alpha * (255 - src_alpha) / (255 * 255);
+            uint8_t blended_green = ((src_color >> 8) & 0xFF) * src_alpha / 255 + ((dst_color >> 8) & 0xFF) * dst_alpha * (255 - src_alpha) / (255 * 255);
+            uint8_t blended_blue = (src_color & 0xFF) * src_alpha / 255 + (dst_color & 0xFF) * dst_alpha * (255 - src_alpha) / (255 * 255);
+
+            // Pack ARGB components into a single 32-bit pixel
+            *dst_pixel = (blended_alpha << 24) | (blended_red << 16) | (blended_green << 8) | blended_blue;
+
+            src_pixel++;
+            dst_pixel++;
+        }
+
+        dst_pixel += dst_next_row;
+        src_pixel += src_next_row;
+    }
+}
+
 static void imageBlitRect(WrenVM *vm)
 {
     Image *image = (Image *)wrenGetSlotForeign(vm, 0);
@@ -1094,6 +1169,8 @@ static WrenForeignMethodFn wrenBindForeignMethod(WrenVM *vm, const char *module,
             return imageRect;
         if (strcmp(signature, "blit(_,_,_)") == 0)
             return imageBlit;
+        if (strcmp(signature, "blitAlpha(_,_,_)") == 0)
+            return imageBlitAlpha;
         if (strcmp(signature, "blit(_,_,_,_,_,_,_)") == 0)
             return imageBlitRect;
         if (strcmp(signature, "f_blit(_,_,_,_)") == 0)

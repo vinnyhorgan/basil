@@ -14,6 +14,8 @@ foreign class Image {
     foreign f_blit(image, dstX, dstY, srcX, srcY, srcWidth, srcHeight, key)
     foreign f_blit(image, dstX, dstY, srcX, srcY, srcWidth, srcHeight, key, tint)
 
+    foreign blitAlpha(image, x, y)
+
     set(x, y, color) {
         if (color is Color) {
             f_set(x, y, color.toNum)
