@@ -2,7 +2,7 @@ foreign class Image {
     foreign construct create(width, height)
     foreign construct create(image)
 
-    foreign f_set(x, y, color)
+    foreign set(x, y, color)
     foreign f_get(x, y)
     foreign f_clear(color)
     foreign f_rect(x, y, width, height, color)
@@ -15,14 +15,6 @@ foreign class Image {
     foreign f_blit(image, dstX, dstY, srcX, srcY, srcWidth, srcHeight, key, tint)
 
     foreign blitAlpha(image, x, y)
-
-    set(x, y, color) {
-        if (color is Color) {
-            f_set(x, y, color.toNum)
-        } else {
-            f_set(x, y, color)
-        }
-    }
 
     get(x, y) { Color.fromNum(f_get(x, y)) }
 
@@ -177,6 +169,15 @@ class OS {
     static exit() {
         exit(0)
     }
+}
+
+foreign class FColor {
+    construct new(r, g, b, a) {}
+
+    foreign r
+    foreign g
+    foreign b
+    foreign a
 }
 
 foreign class Timer {
