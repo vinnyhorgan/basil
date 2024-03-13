@@ -1,158 +1,50 @@
 foreign class Image {
-    foreign construct create(width, height)
-    foreign construct create(image)
-
-    foreign set(x, y, color)
-    foreign f_get(x, y)
-    foreign f_clear(color)
-    foreign f_rect(x, y, width, height, color)
-
-    foreign blit(image, x, y)
-    foreign blit(image, dstX, dstY, srcX, srcY, srcWidth, srcHeight)
-
-    foreign f_blit(image, x, y, key)
-    foreign f_blit(image, dstX, dstY, srcX, srcY, srcWidth, srcHeight, key)
-    foreign f_blit(image, dstX, dstY, srcX, srcY, srcWidth, srcHeight, key, tint)
-
-    foreign blitAlpha(image, x, y)
-
-    get(x, y) { Color.fromNum(f_get(x, y)) }
-
-    clear(color) {
-        if (color is Color) {
-            f_clear(color.toNum)
-        } else {
-            f_clear(color)
-        }
-    }
-
-    clear() {
-        f_clear(0xFF000000)
-    }
-
-    rect(x, y, width, height, key) {
-        if (color is Color) {
-            f_rect(x, y, width, height, key.toNum)
-        } else {
-            f_rect(x, y, width, height, key)
-        }
-    }
-
-    blit(image, x, y, key) {
-        if (key is Color) {
-            f_blit(image, x, y, key.toNum)
-        } else {
-            f_blit(image, x, y, key)
-        }
-    }
-
-    blit(image, dstX, dstY, srcX, srcY, srcWidth, srcHeight, key) {
-        if (key is Color) {
-            f_blit(image, dstX, dstY, srcX, srcY, srcWidth, srcHeight, key.toNum)
-        } else {
-            f_blit(image, dstX, dstY, srcX, srcY, srcWidth, srcHeight, key)
-        }
-    }
-
-    blit(image, dstX, dstY, srcX, srcY, srcWidth, srcHeight, key, tint) {
-        if (key is Color && tint is Color) {
-            f_blit(image, dstX, dstY, srcX, srcY, srcWidth, srcHeight, key.toNum, tint.toNum)
-        } else {
-            f_blit(image, dstX, dstY, srcX, srcY, srcWidth, srcHeight, key, tint)
-        }
-    }
+    foreign construct new(width, height)
+    foreign construct new(path)
 
     foreign width
     foreign height
+
+    foreign f_get(x, y)
+    foreign set(x, y, color)
+    foreign clear(color)
+    foreign blit(image, dx, dy, sx, sy, width, height)
+
+    get(x, y) { Color.new(f_get(x, y)) }
 }
 
-class Color {
-    construct new(r, g, b) {
-        init_(r, g, b, 255)
-    }
+foreign class Color {
+    foreign construct new(r, g, b, a)
+    foreign construct new(r, g, b)
+    foreign construct new(hex)
 
-    construct new(r, g, b, a) {
-        init_(r, g, b, a)
-    }
+    foreign r
+    foreign g
+    foreign b
+    foreign a
 
-    init_(r, g, b, a) {
-        if (r < 0 || r > 255) Fiber.abort("Red channel out of range")
-        if (g < 0 || g > 255) Fiber.abort("Green channel out of range")
-        if (b < 0 || b > 255) Fiber.abort("Blue channel out of range")
-        if (a < 0 || a > 255) Fiber.abort("Alpha channel out of range")
+    foreign r=(v)
+    foreign g=(v)
+    foreign b=(v)
+    foreign a=(v)
 
-        _r = r
-        _g = g
-        _b = b
-        _a = a
-    }
-
-    toNum { a << 24 | r << 16 | g << 8 | b }
-    static fromNum(v) {
-        var a = v & 0xFF
-        var r = (v >> 8) & 0xFF
-        var g = (v >> 16) & 0xFF
-        var b = (v >> 24) & 0xFF
-        return Color.new(r, g, b, a)
-    }
-
-    toString { "Color (" + r.toString + ", " + g.toString + ", " + b.toString + ", " + a.toString + ")" }
-
-    ==(other) {
-        if (other is Color) {
-            return other.r == r && other.g == g && other.b == b && other.a == a
-        } else {
-            return false
-        }
-    }
-
-    !=(other) {
-        if (other is Color) {
-            return other.r != r || other.g != g || other.b != b || other.a != a
-        } else {
-            return true
-        }
-    }
-
-    r { _r }
-    g { _g }
-    b { _b }
-    a { _a }
-
-    r=(v) {
-        if (v < 0 || v > 255) Fiber.abort("Red channel out of range")
-        _r = v
-    }
-    g=(v) {
-        if (v < 0 || v > 255) Fiber.abort("Green channel out of range")
-        _g = v
-    }
-    b=(v) {
-        if (v < 0 || v > 255) Fiber.abort("Blue channel out of range")
-        _b = v
-    }
-    a=(v) {
-        if (v < 0 || v > 255) Fiber.abort("Alpha channel out of range")
-        _a = v
-    }
-
-    static none { Color.new(0, 0, 0, 0) }
-    static black { Color.new(0, 0, 0) }
-    static darkBlue { Color.new(29, 43, 83) }
-    static darkPurple { Color.new(126, 37, 83) }
-    static darkGreen { Color.new(0, 135, 81) }
-    static brown { Color.new(171, 82, 54) }
-    static darkGray { Color.new(95, 87, 79) }
-    static lightGray { Color.new(194, 195, 199) }
-    static white { Color.new(255, 241, 232) }
-    static red { Color.new(255, 0, 77) }
-    static orange { Color.new(255, 163, 0) }
-    static yellow { Color.new(255, 236, 39) }
-    static green { Color.new(0, 228, 54) }
-    static blue { Color.new(41, 173, 255) }
-    static indigo { Color.new(131, 118, 156) }
-    static pink { Color.new(255, 119, 168) }
-    static peach { Color.new(255, 204, 170) }
+    static none { new(0, 0, 0, 0) }
+    static black { new(0, 0, 0) }
+    static darkBlue { new(29, 43, 83) }
+    static darkPurple { new(126, 37, 83) }
+    static darkGreen { new(0, 135, 81) }
+    static brown { new(171, 82, 54) }
+    static darkGray { new(95, 87, 79) }
+    static lightGray { new(194, 195, 199) }
+    static white { new(255, 241, 232) }
+    static red { new(255, 0, 77) }
+    static orange { new(255, 163, 0) }
+    static yellow { new(255, 236, 39) }
+    static green { new(0, 228, 54) }
+    static blue { new(41, 173, 255) }
+    static indigo { new(131, 118, 156) }
+    static pink { new(255, 119, 168) }
+    static peach { new(255, 204, 170) }
 }
 
 class OS {
@@ -169,15 +61,6 @@ class OS {
     static exit() {
         exit(0)
     }
-}
-
-foreign class FColor {
-    construct new(r, g, b, a) {}
-
-    foreign r
-    foreign g
-    foreign b
-    foreign a
 }
 
 foreign class Timer {
