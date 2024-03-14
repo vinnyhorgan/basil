@@ -872,6 +872,30 @@ static void windowMouseY(WrenVM* vm)
     wrenSetSlotDouble(vm, 0, window->mouseY);
 }
 
+static void windowGetIntegerScaling(WrenVM* vm)
+{
+    if (window == NULL) {
+        VM_ABORT(vm, "Window not initialized");
+        return;
+    }
+
+    wrenEnsureSlots(vm, 1);
+    wrenSetSlotBool(vm, 0, SDL_RenderGetIntegerScale(window->renderer));
+}
+
+static void windowSetIntegerScaling(WrenVM* vm)
+{
+    if (window == NULL) {
+        VM_ABORT(vm, "Window not initialized");
+        return;
+    }
+
+    ASSERT_SLOT_TYPE(vm, 1, BOOL, "integerScaling");
+
+    bool integerScaling = wrenGetSlotBool(vm, 1);
+    SDL_RenderSetIntegerScale(window->renderer, integerScaling);
+}
+
 static char* readFile(const char* path)
 {
     FILE* file = fopen(path, "rb");
@@ -1025,6 +1049,10 @@ static WrenForeignMethodFn wrenBindForeignMethod(WrenVM* vm, const char* module,
             return windowMouseX;
         if (strcmp(signature, "mouseY") == 0)
             return windowMouseY;
+        if (strcmp(signature, "integerScaling") == 0)
+            return windowGetIntegerScaling;
+        if (strcmp(signature, "integerScaling=(_)") == 0)
+            return windowSetIntegerScaling;
     }
 
     return NULL;

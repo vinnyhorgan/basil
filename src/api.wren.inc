@@ -93,4 +93,7 @@ static const char* apiModuleSource =
 "    foreign static closed\n"
 "    foreign static mouseX\n"
 "    foreign static mouseY\n"
+"\n"
+"    foreign static integerScaling\n"
+"    foreign static integerScaling=(v)\n"
 "}\n";

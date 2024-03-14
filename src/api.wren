@@ -91,4 +91,7 @@ class Window {
     foreign static closed
     foreign static mouseX
     foreign static mouseY
+
+    foreign static integerScaling
+    foreign static integerScaling=(v)
 }
