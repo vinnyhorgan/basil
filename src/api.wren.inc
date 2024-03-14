@@ -12,6 +12,7 @@ static const char* apiModuleSource =
 "    foreign clear(color)\n"
 "    foreign blit(image, dx, dy, sx, sy, width, height)\n"
 "    foreign blitAlpha(image, dx, dy, sx, sy, width, height, tint)\n"
+"    foreign text(text, x, y, color)\n"
 "\n"
 "    get(x, y) { Color.new(f_get(x, y)) }\n"
 "}\n"

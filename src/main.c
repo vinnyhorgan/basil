@@ -11,6 +11,8 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "lib/stb/stb_image.h"
 
+#include "font8x8_basic.h"
+
 #define BASIL_VERSION "0.1.0"
 #define MAX_PATH_LENGTH 256
 
@@ -55,12 +57,6 @@
     if (width <= 0 || height <= 0)        \
     return
 
-#define PACK_ARGB(alpha, red, green, blue) (uint32_t)(((uint8_t)(alpha) << 24) | ((uint8_t)(red) << 16) | ((uint8_t)(green) << 8) | (uint8_t)(blue))
-#define ALPHA(color) ((uint8_t)(color >> 24))
-#define RED(color) ((uint8_t)(color >> 16))
-#define GREEN(color) ((uint8_t)(color >> 8))
-#define BLUE(color) ((uint8_t)(color))
-
 #include "api.wren.inc"
 
 typedef struct
@@ -102,6 +98,7 @@ static int argCount;
 static char **args;
 static int exitCode = 0;
 static char basePath[MAX_PATH_LENGTH];
+static Image defaultFont[128];
 
 static void colorAllocate(WrenVM *vm)
 {
@@ -390,28 +387,17 @@ static void imageBlit(WrenVM *vm)
     } while (--height);
 }
 
-static void imageBlitAlpha(WrenVM *vm)
+static void blitTint(Image *image, Image *src, int dx, int dy, int sx, int sy, int width, int height, Color tint)
 {
-    Image *image = (Image *)wrenGetSlotForeign(vm, 0);
-
-    Image *src = (Image *)wrenGetSlotForeign(vm, 1);
-    int dx = (int)wrenGetSlotDouble(vm, 2);
-    int dy = (int)wrenGetSlotDouble(vm, 3);
-    int sx = (int)wrenGetSlotDouble(vm, 4);
-    int sy = (int)wrenGetSlotDouble(vm, 5);
-    int width = (int)wrenGetSlotDouble(vm, 6);
-    int height = (int)wrenGetSlotDouble(vm, 7);
-    Color *tint = (Color *)wrenGetSlotForeign(vm, 8);
-
     int cw = image->clipWidth >= 0 ? image->clipWidth : image->width;
     int ch = image->clipHeight >= 0 ? image->clipHeight : image->height;
 
     CLIP();
 
-    int xr = EXPAND(tint->r);
-    int xg = EXPAND(tint->g);
-    int xb = EXPAND(tint->b);
-    int xa = EXPAND(tint->a);
+    int xr = EXPAND(tint.r);
+    int xg = EXPAND(tint.g);
+    int xb = EXPAND(tint.b);
+    int xa = EXPAND(tint.a);
 
     Color *ts = &src->data[sy * src->width + sx];
     Color *td = &image->data[dy * image->width + dx];
@@ -435,6 +421,49 @@ static void imageBlitAlpha(WrenVM *vm)
         ts += st;
         td += dt;
     } while (--height);
+}
+
+static void imageBlitAlpha(WrenVM *vm)
+{
+    Image *image = (Image *)wrenGetSlotForeign(vm, 0);
+
+    ASSERT_SLOT_TYPE(vm, 1, FOREIGN, "image");
+    ASSERT_SLOT_TYPE(vm, 2, NUM, "dx");
+    ASSERT_SLOT_TYPE(vm, 3, NUM, "dy");
+    ASSERT_SLOT_TYPE(vm, 4, NUM, "sx");
+    ASSERT_SLOT_TYPE(vm, 5, NUM, "sy");
+    ASSERT_SLOT_TYPE(vm, 6, NUM, "width");
+    ASSERT_SLOT_TYPE(vm, 7, NUM, "height");
+    ASSERT_SLOT_TYPE(vm, 8, FOREIGN, "tint");
+
+    Image *src = (Image *)wrenGetSlotForeign(vm, 1);
+    int dx = (int)wrenGetSlotDouble(vm, 2);
+    int dy = (int)wrenGetSlotDouble(vm, 3);
+    int sx = (int)wrenGetSlotDouble(vm, 4);
+    int sy = (int)wrenGetSlotDouble(vm, 5);
+    int width = (int)wrenGetSlotDouble(vm, 6);
+    int height = (int)wrenGetSlotDouble(vm, 7);
+    Color *tint = (Color *)wrenGetSlotForeign(vm, 8);
+
+    blitTint(image, src, dx, dy, sx, sy, width, height, *tint);
+}
+
+static void imageText(WrenVM *vm)
+{
+    Image *image = (Image *)wrenGetSlotForeign(vm, 0);
+
+    ASSERT_SLOT_TYPE(vm, 1, STRING, "text");
+    ASSERT_SLOT_TYPE(vm, 2, NUM, "x");
+    ASSERT_SLOT_TYPE(vm, 3, NUM, "y");
+    ASSERT_SLOT_TYPE(vm, 4, FOREIGN, "color");
+
+    const char *text = wrenGetSlotString(vm, 1);
+    int x = (int)wrenGetSlotDouble(vm, 2);
+    int y = (int)wrenGetSlotDouble(vm, 3);
+    Color *color = (Color *)wrenGetSlotForeign(vm, 4);
+
+    for (int i = 0; i < strlen(text); i++)
+        blitTint(image, &defaultFont[text[i]], x + i * 8, y, 0, 0, 8, 8, *color);
 }
 
 static void imageWidth(WrenVM *vm)
@@ -926,6 +955,8 @@ static WrenForeignMethodFn wrenBindForeignMethod(WrenVM *vm, const char *module,
             return imageBlit;
         if (strcmp(signature, "blitAlpha(_,_,_,_,_,_,_,_)") == 0)
             return imageBlitAlpha;
+        if (strcmp(signature, "text(_,_,_,_)") == 0)
+            return imageText;
         if (strcmp(signature, "width") == 0)
             return imageWidth;
         if (strcmp(signature, "height") == 0)
@@ -1112,6 +1143,26 @@ int main(int argc, char *argv[])
 
     argCount = argc;
     args = argv;
+
+    for (int c = 0; c < 128; c++)
+    {
+        char *bitmap = font8x8_basic[c];
+
+        defaultFont[c].data = (Color *)malloc(8 * 8 * sizeof(Color));
+        defaultFont[c].width = 8;
+        defaultFont[c].height = 8;
+
+        for (int i = 0; i < 8; i++)
+        {
+            for (int j = 0; j < 8; j++)
+            {
+                if (bitmap[i] & (1 << j))
+                    defaultFont[c].data[i * 8 + j] = (Color){255, 255, 255, 255};
+                else
+                    defaultFont[c].data[i * 8 + j] = (Color){0, 0, 0, 0};
+            }
+        }
+    }
 
     WrenConfiguration config;
     wrenInitConfiguration(&config);
