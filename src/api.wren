@@ -11,6 +11,7 @@ foreign class Image {
     foreign blit(image, dx, dy, sx, sy, width, height)
     foreign blitAlpha(image, dx, dy, sx, sy, width, height, tint)
     foreign text(text, x, y, color)
+    foreign fill(x, y, width, height, color)
 
     get(x, y) { Color.new(f_get(x, y)) }
 }

@@ -242,8 +242,8 @@ static void imageNew(WrenVM *vm)
 
     image->clipX = 0;
     image->clipY = 0;
-    image->clipWidth = width - 1;
-    image->clipHeight = height - 1;
+    image->clipWidth = width;
+    image->clipHeight = height;
 }
 
 static void imageNew2(WrenVM *vm)
@@ -275,8 +275,8 @@ static void imageNew2(WrenVM *vm)
 
     image->clipX = 0;
     image->clipY = 0;
-    image->clipWidth = image->width - 1;
-    image->clipHeight = image->height - 1;
+    image->clipWidth = image->width;
+    image->clipHeight = image->height;
 }
 
 static void setColor(Image *image, int x, int y, Color color)
@@ -464,6 +464,57 @@ static void imageText(WrenVM *vm)
 
     for (int i = 0; i < strlen(text); i++)
         blitTint(image, &defaultFont[text[i]], x + i * 8, y, 0, 0, 8, 8, *color);
+}
+
+static void imageFill(WrenVM *vm)
+{
+    Image *image = (Image *)wrenGetSlotForeign(vm, 0);
+
+    ASSERT_SLOT_TYPE(vm, 1, NUM, "x");
+    ASSERT_SLOT_TYPE(vm, 2, NUM, "y");
+    ASSERT_SLOT_TYPE(vm, 3, NUM, "width");
+    ASSERT_SLOT_TYPE(vm, 4, NUM, "height");
+    ASSERT_SLOT_TYPE(vm, 5, FOREIGN, "color");
+
+    int x = (int)wrenGetSlotDouble(vm, 1);
+    int y = (int)wrenGetSlotDouble(vm, 2);
+    int w = (int)wrenGetSlotDouble(vm, 3);
+    int h = (int)wrenGetSlotDouble(vm, 4);
+    Color *color = (Color *)wrenGetSlotForeign(vm, 5);
+
+    Color *td;
+    int dt, i;
+
+    if (x < 0)
+    {
+        w += x;
+        x = 0;
+    }
+    if (y < 0)
+    {
+        h += y;
+        y = 0;
+    }
+    if (x + w > image->width)
+    {
+        w = image->width - x;
+    }
+    if (y + h > image->height)
+    {
+        h = image->height - y;
+    }
+    if (w <= 0 || h <= 0)
+        return;
+
+    td = &image->data[y * image->width + x];
+    dt = image->width;
+
+    do
+    {
+        for (i = 0; i < w; i++)
+            td[i] = *color;
+        td += dt;
+    } while (--h);
 }
 
 static void imageWidth(WrenVM *vm)
@@ -957,6 +1008,8 @@ static WrenForeignMethodFn wrenBindForeignMethod(WrenVM *vm, const char *module,
             return imageBlitAlpha;
         if (strcmp(signature, "text(_,_,_,_)") == 0)
             return imageText;
+        if (strcmp(signature, "fill(_,_,_,_,_)") == 0)
+            return imageFill;
         if (strcmp(signature, "width") == 0)
             return imageWidth;
         if (strcmp(signature, "height") == 0)
