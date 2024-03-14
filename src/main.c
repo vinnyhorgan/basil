@@ -362,7 +362,7 @@ static void imageBlit(WrenVM *vm)
     ASSERT_SLOT_TYPE(vm, 4, NUM, "sx");
     ASSERT_SLOT_TYPE(vm, 5, NUM, "sy");
     ASSERT_SLOT_TYPE(vm, 6, NUM, "width");
-    ASSERT_SLOT_TYPE(vm, 7, NUM, "heigh");
+    ASSERT_SLOT_TYPE(vm, 7, NUM, "height");
 
     Image *src = (Image *)wrenGetSlotForeign(vm, 1);
     int dx = (int)wrenGetSlotDouble(vm, 2);
@@ -385,6 +385,53 @@ static void imageBlit(WrenVM *vm)
     do
     {
         memcpy(td, ts, width * sizeof(Color));
+        ts += st;
+        td += dt;
+    } while (--height);
+}
+
+static void imageBlitAlpha(WrenVM *vm)
+{
+    Image *image = (Image *)wrenGetSlotForeign(vm, 0);
+
+    Image *src = (Image *)wrenGetSlotForeign(vm, 1);
+    int dx = (int)wrenGetSlotDouble(vm, 2);
+    int dy = (int)wrenGetSlotDouble(vm, 3);
+    int sx = (int)wrenGetSlotDouble(vm, 4);
+    int sy = (int)wrenGetSlotDouble(vm, 5);
+    int width = (int)wrenGetSlotDouble(vm, 6);
+    int height = (int)wrenGetSlotDouble(vm, 7);
+    Color *tint = (Color *)wrenGetSlotForeign(vm, 8);
+
+    int cw = image->clipWidth >= 0 ? image->clipWidth : image->width;
+    int ch = image->clipHeight >= 0 ? image->clipHeight : image->height;
+
+    CLIP();
+
+    int xr = EXPAND(tint->r);
+    int xg = EXPAND(tint->g);
+    int xb = EXPAND(tint->b);
+    int xa = EXPAND(tint->a);
+
+    Color *ts = &src->data[sy * src->width + sx];
+    Color *td = &image->data[dy * image->width + dx];
+    int st = src->width;
+    int dt = image->width;
+
+    do
+    {
+        for (int x = 0; x < width; x++)
+        {
+            uint32_t r = (xr * ts[x].r) >> 8;
+            uint32_t g = (xg * ts[x].g) >> 8;
+            uint32_t b = (xb * ts[x].b) >> 8;
+            uint32_t a = xa * EXPAND(ts[x].a);
+            td[x].r += (uint8_t)((r - td[x].r) * a >> 16);
+            td[x].g += (uint8_t)((g - td[x].g) * a >> 16);
+            td[x].b += (uint8_t)((b - td[x].b) * a >> 16);
+            td[x].a += (uint8_t)((ts[x].a - td[x].a) * a >> 16);
+        }
+
         ts += st;
         td += dt;
     } while (--height);
@@ -877,6 +924,8 @@ static WrenForeignMethodFn wrenBindForeignMethod(WrenVM *vm, const char *module,
             return imageClear;
         if (strcmp(signature, "blit(_,_,_,_,_,_,_)") == 0)
             return imageBlit;
+        if (strcmp(signature, "blitAlpha(_,_,_,_,_,_,_,_)") == 0)
+            return imageBlitAlpha;
         if (strcmp(signature, "width") == 0)
             return imageWidth;
         if (strcmp(signature, "height") == 0)

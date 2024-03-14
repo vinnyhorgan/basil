@@ -9,6 +9,7 @@ foreign class Image {
     foreign set(x, y, color)
     foreign clear(color)
     foreign blit(image, dx, dy, sx, sy, width, height)
+    foreign blitAlpha(image, dx, dy, sx, sy, width, height, tint)
 
     get(x, y) { Color.new(f_get(x, y)) }
 }
