@@ -1,8 +1,8 @@
+#include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdint.h>
-#include <stdbool.h>
 
 #include <SDL2/SDL.h>
 
@@ -17,15 +17,13 @@
 #define MAX_PATH_LENGTH 256
 
 #define VM_ABORT(vm, error)              \
-    do                                   \
-    {                                    \
+    do {                                 \
         wrenSetSlotString(vm, 0, error); \
         wrenAbortFiber(vm, 0);           \
     } while (false);
 
 #define ASSERT_SLOT_TYPE(vm, slot, type, fieldName)                       \
-    if (wrenGetSlotType(vm, slot) != WREN_TYPE_##type)                    \
-    {                                                                     \
+    if (wrenGetSlotType(vm, slot) != WREN_TYPE_##type) {                  \
         VM_ABORT(vm, "Expected " #fieldName " to be of type " #type "."); \
         return;                                                           \
     }
@@ -33,8 +31,7 @@
 #define EXPAND(X) ((X) + ((X) > 0))
 
 #define CLIP0(CX, X, X2, W) \
-    if (X < CX)             \
-    {                       \
+    if (X < CX) {           \
         int D = CX - X;     \
         W -= D;             \
         X2 += D;            \
@@ -68,7 +65,7 @@ typedef struct
 {
     int width, height;
     int clipX, clipY, clipWidth, clipHeight;
-    Color *data;
+    Color* data;
 } Image;
 
 typedef struct
@@ -80,9 +77,9 @@ typedef struct
 
 typedef struct
 {
-    SDL_Window *window;
-    SDL_Renderer *renderer;
-    SDL_Texture *screen;
+    SDL_Window* window;
+    SDL_Renderer* renderer;
+    SDL_Texture* screen;
     int screenWidth, screenHeight;
     bool closed;
     SDL_Scancode keysHeld[SDL_NUM_SCANCODES];
@@ -92,23 +89,23 @@ typedef struct
     int mouseX, mouseY;
 } Window;
 
-static Window *window = NULL;
+static Window* window = NULL;
 
 static int argCount;
-static char **args;
+static char** args;
 static int exitCode = 0;
 static char basePath[MAX_PATH_LENGTH];
 static Image defaultFont[128];
 
-static void colorAllocate(WrenVM *vm)
+static void colorAllocate(WrenVM* vm)
 {
     wrenEnsureSlots(vm, 1);
     wrenSetSlotNewForeign(vm, 0, 0, sizeof(Color));
 }
 
-static void colorNew(WrenVM *vm)
+static void colorNew(WrenVM* vm)
 {
-    Color *color = (Color *)wrenGetSlotForeign(vm, 0);
+    Color* color = (Color*)wrenGetSlotForeign(vm, 0);
 
     ASSERT_SLOT_TYPE(vm, 1, NUM, "red");
     ASSERT_SLOT_TYPE(vm, 2, NUM, "green");
@@ -121,9 +118,9 @@ static void colorNew(WrenVM *vm)
     color->a = (uint8_t)wrenGetSlotDouble(vm, 4);
 }
 
-static void colorNew2(WrenVM *vm)
+static void colorNew2(WrenVM* vm)
 {
-    Color *color = (Color *)wrenGetSlotForeign(vm, 0);
+    Color* color = (Color*)wrenGetSlotForeign(vm, 0);
 
     ASSERT_SLOT_TYPE(vm, 1, NUM, "red");
     ASSERT_SLOT_TYPE(vm, 2, NUM, "green");
@@ -135,9 +132,9 @@ static void colorNew2(WrenVM *vm)
     color->a = 255;
 }
 
-static void colorNew3(WrenVM *vm)
+static void colorNew3(WrenVM* vm)
 {
-    Color *color = (Color *)wrenGetSlotForeign(vm, 0);
+    Color* color = (Color*)wrenGetSlotForeign(vm, 0);
 
     ASSERT_SLOT_TYPE(vm, 1, NUM, "hex");
 
@@ -149,63 +146,63 @@ static void colorNew3(WrenVM *vm)
     color->a = (uint8_t)(hex >> 24);
 }
 
-static void colorGetR(WrenVM *vm)
+static void colorGetR(WrenVM* vm)
 {
-    Color *color = (Color *)wrenGetSlotForeign(vm, 0);
+    Color* color = (Color*)wrenGetSlotForeign(vm, 0);
     wrenSetSlotDouble(vm, 0, color->r);
 }
 
-static void colorGetG(WrenVM *vm)
+static void colorGetG(WrenVM* vm)
 {
-    Color *color = (Color *)wrenGetSlotForeign(vm, 0);
+    Color* color = (Color*)wrenGetSlotForeign(vm, 0);
     wrenSetSlotDouble(vm, 0, color->g);
 }
 
-static void colorGetB(WrenVM *vm)
+static void colorGetB(WrenVM* vm)
 {
-    Color *color = (Color *)wrenGetSlotForeign(vm, 0);
+    Color* color = (Color*)wrenGetSlotForeign(vm, 0);
     wrenSetSlotDouble(vm, 0, color->b);
 }
 
-static void colorGetA(WrenVM *vm)
+static void colorGetA(WrenVM* vm)
 {
-    Color *color = (Color *)wrenGetSlotForeign(vm, 0);
+    Color* color = (Color*)wrenGetSlotForeign(vm, 0);
     wrenSetSlotDouble(vm, 0, color->a);
 }
 
-static void colorSetR(WrenVM *vm)
+static void colorSetR(WrenVM* vm)
 {
-    Color *color = (Color *)wrenGetSlotForeign(vm, 0);
+    Color* color = (Color*)wrenGetSlotForeign(vm, 0);
     color->r = (uint8_t)wrenGetSlotDouble(vm, 1);
 }
 
-static void colorSetG(WrenVM *vm)
+static void colorSetG(WrenVM* vm)
 {
-    Color *color = (Color *)wrenGetSlotForeign(vm, 0);
+    Color* color = (Color*)wrenGetSlotForeign(vm, 0);
     color->g = (uint8_t)wrenGetSlotDouble(vm, 1);
 }
 
-static void colorSetB(WrenVM *vm)
+static void colorSetB(WrenVM* vm)
 {
-    Color *color = (Color *)wrenGetSlotForeign(vm, 0);
+    Color* color = (Color*)wrenGetSlotForeign(vm, 0);
     color->b = (uint8_t)wrenGetSlotDouble(vm, 1);
 }
 
-static void colorSetA(WrenVM *vm)
+static void colorSetA(WrenVM* vm)
 {
-    Color *color = (Color *)wrenGetSlotForeign(vm, 0);
+    Color* color = (Color*)wrenGetSlotForeign(vm, 0);
     color->a = (uint8_t)wrenGetSlotDouble(vm, 1);
 }
 
-static void imageAllocate(WrenVM *vm)
+static void imageAllocate(WrenVM* vm)
 {
     wrenEnsureSlots(vm, 1);
     wrenSetSlotNewForeign(vm, 0, 0, sizeof(Image));
 }
 
-static void imageFinalize(void *data)
+static void imageFinalize(void* data)
 {
-    Image *image = (Image *)data;
+    Image* image = (Image*)data;
 
     if (image->data == NULL)
         return;
@@ -214,9 +211,9 @@ static void imageFinalize(void *data)
     image->data = NULL;
 }
 
-static void imageNew(WrenVM *vm)
+static void imageNew(WrenVM* vm)
 {
-    Image *image = (Image *)wrenGetSlotForeign(vm, 0);
+    Image* image = (Image*)wrenGetSlotForeign(vm, 0);
 
     ASSERT_SLOT_TYPE(vm, 1, NUM, "width");
     ASSERT_SLOT_TYPE(vm, 2, NUM, "height");
@@ -224,15 +221,13 @@ static void imageNew(WrenVM *vm)
     int width = (int)wrenGetSlotDouble(vm, 1);
     int height = (int)wrenGetSlotDouble(vm, 2);
 
-    if (width <= 0 || height <= 0)
-    {
+    if (width <= 0 || height <= 0) {
         VM_ABORT(vm, "Image dimensions must be positive");
         return;
     }
 
-    image->data = (Color *)malloc(width * height * sizeof(Color));
-    if (image->data == NULL)
-    {
+    image->data = (Color*)malloc(width * height * sizeof(Color));
+    if (image->data == NULL) {
         VM_ABORT(vm, "Error allocating image");
         return;
     }
@@ -246,28 +241,26 @@ static void imageNew(WrenVM *vm)
     image->clipHeight = height;
 }
 
-static void imageNew2(WrenVM *vm)
+static void imageNew2(WrenVM* vm)
 {
-    Image *image = (Image *)wrenGetSlotForeign(vm, 0);
+    Image* image = (Image*)wrenGetSlotForeign(vm, 0);
 
     ASSERT_SLOT_TYPE(vm, 1, STRING, "path");
 
-    char *path = (char *)wrenGetSlotString(vm, 1);
+    char* path = (char*)wrenGetSlotString(vm, 1);
 
     char fullPath[MAX_PATH_LENGTH];
     snprintf(fullPath, MAX_PATH_LENGTH, "%s/%s", basePath, path);
 
-    image->data = (Color *)stbi_load(fullPath, &image->width, &image->height, NULL, 4);
-    if (image->data == NULL)
-    {
+    image->data = (Color*)stbi_load(fullPath, &image->width, &image->height, NULL, 4);
+    if (image->data == NULL) {
         VM_ABORT(vm, "Error loading image");
         return;
     }
 
-    uint8_t *bytes = (uint8_t *)image->data;
+    uint8_t* bytes = (uint8_t*)image->data;
     int32_t n = image->width * image->height * sizeof(uint32_t);
-    for (int32_t i = 0; i < n; i += 4)
-    {
+    for (int32_t i = 0; i < n; i += 4) {
         uint8_t b = bytes[i];
         bytes[i] = bytes[i + 2];
         bytes[i + 2] = b;
@@ -279,7 +272,7 @@ static void imageNew2(WrenVM *vm)
     image->clipHeight = image->height;
 }
 
-static void setColor(Image *image, int x, int y, Color color)
+static void setColor(Image* image, int x, int y, Color color)
 {
     int xa, i, a;
 
@@ -288,8 +281,7 @@ static void setColor(Image *image, int x, int y, Color color)
     int cw = image->clipWidth >= 0 ? image->clipWidth : image->width;
     int ch = image->clipHeight >= 0 ? image->clipHeight : image->height;
 
-    if (x >= cx && y >= cy && x < cx + cw && y < cy + ch)
-    {
+    if (x >= cx && y >= cy && x < cx + cw && y < cy + ch) {
         xa = EXPAND(color.a);
         a = xa * xa;
         i = y * image->width + x;
@@ -301,9 +293,9 @@ static void setColor(Image *image, int x, int y, Color color)
     }
 }
 
-static void imageSet(WrenVM *vm)
+static void imageSet(WrenVM* vm)
 {
-    Image *image = (Image *)wrenGetSlotForeign(vm, 0);
+    Image* image = (Image*)wrenGetSlotForeign(vm, 0);
 
     ASSERT_SLOT_TYPE(vm, 1, NUM, "x");
     ASSERT_SLOT_TYPE(vm, 2, NUM, "y");
@@ -311,14 +303,14 @@ static void imageSet(WrenVM *vm)
 
     int x = (int)wrenGetSlotDouble(vm, 1);
     int y = (int)wrenGetSlotDouble(vm, 2);
-    Color *color = (Color *)wrenGetSlotForeign(vm, 3);
+    Color* color = (Color*)wrenGetSlotForeign(vm, 3);
 
     setColor(image, x, y, *color);
 }
 
-static void imageGet(WrenVM *vm)
+static void imageGet(WrenVM* vm)
 {
-    Image *image = (Image *)wrenGetSlotForeign(vm, 0);
+    Image* image = (Image*)wrenGetSlotForeign(vm, 0);
 
     ASSERT_SLOT_TYPE(vm, 1, NUM, "x");
     ASSERT_SLOT_TYPE(vm, 2, NUM, "y");
@@ -326,7 +318,7 @@ static void imageGet(WrenVM *vm)
     int x = (int)wrenGetSlotDouble(vm, 1);
     int y = (int)wrenGetSlotDouble(vm, 2);
 
-    Color color = {0, 0, 0, 0};
+    Color color = { 0, 0, 0, 0 };
 
     if (x >= 0 && y >= 0 && x < image->width && y < image->height)
         color = image->data[y * image->width + x];
@@ -334,13 +326,13 @@ static void imageGet(WrenVM *vm)
     wrenSetSlotDouble(vm, 0, (color.a << 24) | (color.r << 16) | (color.g << 8) | color.b);
 }
 
-static void imageClear(WrenVM *vm)
+static void imageClear(WrenVM* vm)
 {
-    Image *image = (Image *)wrenGetSlotForeign(vm, 0);
+    Image* image = (Image*)wrenGetSlotForeign(vm, 0);
 
     ASSERT_SLOT_TYPE(vm, 1, FOREIGN, "color");
 
-    Color *color = (Color *)wrenGetSlotForeign(vm, 1);
+    Color* color = (Color*)wrenGetSlotForeign(vm, 1);
 
     int count = image->width * image->height;
 
@@ -349,9 +341,9 @@ static void imageClear(WrenVM *vm)
         image->data[n] = *color;
 }
 
-static void imageBlit(WrenVM *vm)
+static void imageBlit(WrenVM* vm)
 {
-    Image *image = (Image *)wrenGetSlotForeign(vm, 0);
+    Image* image = (Image*)wrenGetSlotForeign(vm, 0);
 
     ASSERT_SLOT_TYPE(vm, 1, FOREIGN, "image");
     ASSERT_SLOT_TYPE(vm, 2, NUM, "dx");
@@ -361,7 +353,7 @@ static void imageBlit(WrenVM *vm)
     ASSERT_SLOT_TYPE(vm, 6, NUM, "width");
     ASSERT_SLOT_TYPE(vm, 7, NUM, "height");
 
-    Image *src = (Image *)wrenGetSlotForeign(vm, 1);
+    Image* src = (Image*)wrenGetSlotForeign(vm, 1);
     int dx = (int)wrenGetSlotDouble(vm, 2);
     int dy = (int)wrenGetSlotDouble(vm, 3);
     int sx = (int)wrenGetSlotDouble(vm, 4);
@@ -374,20 +366,19 @@ static void imageBlit(WrenVM *vm)
 
     CLIP();
 
-    Color *ts = &src->data[sy * src->width + sx];
-    Color *td = &image->data[dy * image->width + dx];
+    Color* ts = &src->data[sy * src->width + sx];
+    Color* td = &image->data[dy * image->width + dx];
     int st = src->width;
     int dt = image->width;
 
-    do
-    {
+    do {
         memcpy(td, ts, width * sizeof(Color));
         ts += st;
         td += dt;
     } while (--height);
 }
 
-static void blitTint(Image *image, Image *src, int dx, int dy, int sx, int sy, int width, int height, Color tint)
+static void blitTint(Image* image, Image* src, int dx, int dy, int sx, int sy, int width, int height, Color tint)
 {
     int cw = image->clipWidth >= 0 ? image->clipWidth : image->width;
     int ch = image->clipHeight >= 0 ? image->clipHeight : image->height;
@@ -399,15 +390,13 @@ static void blitTint(Image *image, Image *src, int dx, int dy, int sx, int sy, i
     int xb = EXPAND(tint.b);
     int xa = EXPAND(tint.a);
 
-    Color *ts = &src->data[sy * src->width + sx];
-    Color *td = &image->data[dy * image->width + dx];
+    Color* ts = &src->data[sy * src->width + sx];
+    Color* td = &image->data[dy * image->width + dx];
     int st = src->width;
     int dt = image->width;
 
-    do
-    {
-        for (int x = 0; x < width; x++)
-        {
+    do {
+        for (int x = 0; x < width; x++) {
             uint32_t r = (xr * ts[x].r) >> 8;
             uint32_t g = (xg * ts[x].g) >> 8;
             uint32_t b = (xb * ts[x].b) >> 8;
@@ -423,9 +412,9 @@ static void blitTint(Image *image, Image *src, int dx, int dy, int sx, int sy, i
     } while (--height);
 }
 
-static void imageBlitAlpha(WrenVM *vm)
+static void imageBlitAlpha(WrenVM* vm)
 {
-    Image *image = (Image *)wrenGetSlotForeign(vm, 0);
+    Image* image = (Image*)wrenGetSlotForeign(vm, 0);
 
     ASSERT_SLOT_TYPE(vm, 1, FOREIGN, "image");
     ASSERT_SLOT_TYPE(vm, 2, NUM, "dx");
@@ -436,39 +425,39 @@ static void imageBlitAlpha(WrenVM *vm)
     ASSERT_SLOT_TYPE(vm, 7, NUM, "height");
     ASSERT_SLOT_TYPE(vm, 8, FOREIGN, "tint");
 
-    Image *src = (Image *)wrenGetSlotForeign(vm, 1);
+    Image* src = (Image*)wrenGetSlotForeign(vm, 1);
     int dx = (int)wrenGetSlotDouble(vm, 2);
     int dy = (int)wrenGetSlotDouble(vm, 3);
     int sx = (int)wrenGetSlotDouble(vm, 4);
     int sy = (int)wrenGetSlotDouble(vm, 5);
     int width = (int)wrenGetSlotDouble(vm, 6);
     int height = (int)wrenGetSlotDouble(vm, 7);
-    Color *tint = (Color *)wrenGetSlotForeign(vm, 8);
+    Color* tint = (Color*)wrenGetSlotForeign(vm, 8);
 
     blitTint(image, src, dx, dy, sx, sy, width, height, *tint);
 }
 
-static void imageText(WrenVM *vm)
+static void imageText(WrenVM* vm)
 {
-    Image *image = (Image *)wrenGetSlotForeign(vm, 0);
+    Image* image = (Image*)wrenGetSlotForeign(vm, 0);
 
     ASSERT_SLOT_TYPE(vm, 1, STRING, "text");
     ASSERT_SLOT_TYPE(vm, 2, NUM, "x");
     ASSERT_SLOT_TYPE(vm, 3, NUM, "y");
     ASSERT_SLOT_TYPE(vm, 4, FOREIGN, "color");
 
-    const char *text = wrenGetSlotString(vm, 1);
+    const char* text = wrenGetSlotString(vm, 1);
     int x = (int)wrenGetSlotDouble(vm, 2);
     int y = (int)wrenGetSlotDouble(vm, 3);
-    Color *color = (Color *)wrenGetSlotForeign(vm, 4);
+    Color* color = (Color*)wrenGetSlotForeign(vm, 4);
 
     for (int i = 0; i < strlen(text); i++)
         blitTint(image, &defaultFont[text[i]], x + i * 8, y, 0, 0, 8, 8, *color);
 }
 
-static void imageFill(WrenVM *vm)
+static void imageFill(WrenVM* vm)
 {
-    Image *image = (Image *)wrenGetSlotForeign(vm, 0);
+    Image* image = (Image*)wrenGetSlotForeign(vm, 0);
 
     ASSERT_SLOT_TYPE(vm, 1, NUM, "x");
     ASSERT_SLOT_TYPE(vm, 2, NUM, "y");
@@ -480,27 +469,23 @@ static void imageFill(WrenVM *vm)
     int y = (int)wrenGetSlotDouble(vm, 2);
     int w = (int)wrenGetSlotDouble(vm, 3);
     int h = (int)wrenGetSlotDouble(vm, 4);
-    Color *color = (Color *)wrenGetSlotForeign(vm, 5);
+    Color* color = (Color*)wrenGetSlotForeign(vm, 5);
 
-    Color *td;
+    Color* td;
     int dt, i;
 
-    if (x < 0)
-    {
+    if (x < 0) {
         w += x;
         x = 0;
     }
-    if (y < 0)
-    {
+    if (y < 0) {
         h += y;
         y = 0;
     }
-    if (x + w > image->width)
-    {
+    if (x + w > image->width) {
         w = image->width - x;
     }
-    if (y + h > image->height)
-    {
+    if (y + h > image->height) {
         h = image->height - y;
     }
     if (w <= 0 || h <= 0)
@@ -509,79 +494,77 @@ static void imageFill(WrenVM *vm)
     td = &image->data[y * image->width + x];
     dt = image->width;
 
-    do
-    {
+    do {
         for (i = 0; i < w; i++)
             td[i] = *color;
         td += dt;
     } while (--h);
 }
 
-static void imageWidth(WrenVM *vm)
+static void imageWidth(WrenVM* vm)
 {
-    Image *image = (Image *)wrenGetSlotForeign(vm, 0);
+    Image* image = (Image*)wrenGetSlotForeign(vm, 0);
 
     wrenSetSlotDouble(vm, 0, image->width);
 }
 
-static void imageHeight(WrenVM *vm)
+static void imageHeight(WrenVM* vm)
 {
-    Image *image = (Image *)wrenGetSlotForeign(vm, 0);
+    Image* image = (Image*)wrenGetSlotForeign(vm, 0);
 
     wrenSetSlotDouble(vm, 0, image->height);
 }
 
-static void osName(WrenVM *vm)
+static void osName(WrenVM* vm)
 {
     wrenEnsureSlots(vm, 1);
     wrenSetSlotString(vm, 0, SDL_GetPlatform());
 }
 
-static void osBasilVersion(WrenVM *vm)
+static void osBasilVersion(WrenVM* vm)
 {
     wrenEnsureSlots(vm, 1);
     wrenSetSlotString(vm, 0, BASIL_VERSION);
 }
 
-static void osArgs(WrenVM *vm)
+static void osArgs(WrenVM* vm)
 {
     wrenEnsureSlots(vm, 2);
     wrenSetSlotNewList(vm, 0);
-    for (int i = 0; i < argCount; i++)
-    {
+    for (int i = 0; i < argCount; i++) {
         wrenSetSlotString(vm, 1, args[i]);
         wrenInsertInList(vm, 0, i, 1);
     }
 }
 
-static void osExit(WrenVM *vm)
+static void osExit(WrenVM* vm)
 {
     ASSERT_SLOT_TYPE(vm, 1, NUM, "code");
     exitCode = (int)wrenGetSlotDouble(vm, 1);
 }
 
-static void timerAllocate(WrenVM *vm)
+static void timerAllocate(WrenVM* vm)
 {
     wrenEnsureSlots(vm, 1);
-    Timer *timer = (Timer *)wrenSetSlotNewForeign(vm, 0, 0, sizeof(Timer));
+    Timer* timer = (Timer*)wrenSetSlotNewForeign(vm, 0, 0, sizeof(Timer));
 
     timer->start = SDL_GetPerformanceCounter();
     timer->lastTick = SDL_GetPerformanceCounter();
     timer->delta = 0;
 }
 
-static void timerTick(WrenVM *vm)
+static void timerTick(WrenVM* vm)
 {
-    Timer *timer = (Timer *)wrenGetSlotForeign(vm, 0);
+    Timer* timer = (Timer*)wrenGetSlotForeign(vm, 0);
 
     uint64_t now = SDL_GetPerformanceCounter();
     timer->delta = (double)(now - timer->lastTick) / (double)SDL_GetPerformanceFrequency();
     timer->lastTick = now;
 }
 
-static void timerTickFramerate(WrenVM *vm)
+static void timerTickFramerate(WrenVM* vm)
 {
-    Timer *timer = (Timer *)wrenGetSlotForeign(vm, 0);
+    Timer* timer = (Timer*)wrenGetSlotForeign(vm, 0);
 
     ASSERT_SLOT_TYPE(vm, 1, NUM, "framerate");
 
@@ -591,8 +574,7 @@ static void timerTickFramerate(WrenVM *vm)
     uint64_t now = SDL_GetPerformanceCounter();
     double elapsed = (double)(now - timer->lastTick) / (double)SDL_GetPerformanceFrequency();
 
-    if (elapsed < targetFrameTime)
-    {
+    if (elapsed < targetFrameTime) {
         double delayTime = targetFrameTime - elapsed;
         uint32_t delayMS = (uint32_t)(delayTime * 1000.0);
         SDL_Delay(delayMS);
@@ -605,26 +587,25 @@ static void timerTickFramerate(WrenVM *vm)
     timer->lastTick = now;
 }
 
-static void timerTime(WrenVM *vm)
+static void timerTime(WrenVM* vm)
 {
-    Timer *timer = (Timer *)wrenGetSlotForeign(vm, 0);
+    Timer* timer = (Timer*)wrenGetSlotForeign(vm, 0);
 
     float passed = (SDL_GetPerformanceCounter() - timer->start) / (float)SDL_GetPerformanceFrequency();
 
     wrenSetSlotDouble(vm, 0, passed);
 }
 
-static void timerDelta(WrenVM *vm)
+static void timerDelta(WrenVM* vm)
 {
-    Timer *timer = (Timer *)wrenGetSlotForeign(vm, 0);
+    Timer* timer = (Timer*)wrenGetSlotForeign(vm, 0);
 
     wrenSetSlotDouble(vm, 0, timer->delta);
 }
 
-static void windowInit(WrenVM *vm)
+static void windowInit(WrenVM* vm)
 {
-    if (window != NULL)
-    {
+    if (window != NULL) {
         VM_ABORT(vm, "Window already initialized");
         return;
     }
@@ -633,41 +614,36 @@ static void windowInit(WrenVM *vm)
     ASSERT_SLOT_TYPE(vm, 2, NUM, "width");
     ASSERT_SLOT_TYPE(vm, 3, NUM, "height");
 
-    const char *title = wrenGetSlotString(vm, 1);
+    const char* title = wrenGetSlotString(vm, 1);
     int width = (int)wrenGetSlotDouble(vm, 2);
     int height = (int)wrenGetSlotDouble(vm, 3);
 
-    if (width <= 0 || height <= 0)
-    {
+    if (width <= 0 || height <= 0) {
         VM_ABORT(vm, "Window dimensions must be positive");
         return;
     }
 
-    window = (Window *)malloc(sizeof(Window));
+    window = (Window*)malloc(sizeof(Window));
 
-    if (SDL_Init(SDL_INIT_VIDEO) != 0)
-    {
+    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
         VM_ABORT(vm, "Error initializing SDL");
         return;
     }
 
     window->window = SDL_CreateWindow(title, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, width, height, SDL_WINDOW_RESIZABLE);
-    if (window->window == NULL)
-    {
+    if (window->window == NULL) {
         VM_ABORT(vm, "Error creating window");
         return;
     }
 
     window->renderer = SDL_CreateRenderer(window->window, -1, SDL_RENDERER_ACCELERATED);
-    if (window->renderer == NULL)
-    {
+    if (window->renderer == NULL) {
         wrenSetSlotString(vm, 0, "Error creating renderer");
         return;
     }
 
     window->screen = SDL_CreateTexture(window->renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, width, height);
-    if (window->screen == NULL)
-    {
+    if (window->screen == NULL) {
         VM_ABORT(vm, "Error creating screen texture");
         return;
     }
@@ -680,25 +656,22 @@ static void windowInit(WrenVM *vm)
     SDL_RenderSetLogicalSize(window->renderer, width, height);
 }
 
-static void windowQuit(WrenVM *vm)
+static void windowQuit(WrenVM* vm)
 {
     if (window == NULL)
         return;
 
-    if (window->screen != NULL)
-    {
+    if (window->screen != NULL) {
         SDL_DestroyTexture(window->screen);
         window->screen = NULL;
     }
 
-    if (window->renderer != NULL)
-    {
+    if (window->renderer != NULL) {
         SDL_DestroyRenderer(window->renderer);
         window->renderer = NULL;
     }
 
-    if (window->window != NULL)
-    {
+    if (window->window != NULL) {
         SDL_DestroyWindow(window->window);
         window->window = NULL;
     }
@@ -708,25 +681,22 @@ static void windowQuit(WrenVM *vm)
     SDL_Quit();
 }
 
-static void windowUpdate(WrenVM *vm)
+static void windowUpdate(WrenVM* vm)
 {
-    if (window == NULL)
-    {
+    if (window == NULL) {
         VM_ABORT(vm, "Window not initialized");
         return;
     }
 
     ASSERT_SLOT_TYPE(vm, 1, FOREIGN, "image");
 
-    Image *image = (Image *)wrenGetSlotForeign(vm, 1);
+    Image* image = (Image*)wrenGetSlotForeign(vm, 1);
 
-    if (image->width != window->screenWidth || image->height != window->screenHeight)
-    {
+    if (image->width != window->screenWidth || image->height != window->screenHeight) {
         SDL_DestroyTexture(window->screen);
 
         window->screen = SDL_CreateTexture(window->renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, image->width, image->height);
-        if (window->screen == NULL)
-        {
+        if (window->screen == NULL) {
             VM_ABORT(vm, "Error creating screen texture");
             return;
         }
@@ -750,74 +720,59 @@ static void windowUpdate(WrenVM *vm)
         window->mousePressed[i] = false;
 
     SDL_Event event;
-    while (SDL_PollEvent(&event))
-    {
-        if (event.type == SDL_QUIT)
-        {
+    while (SDL_PollEvent(&event)) {
+        if (event.type == SDL_QUIT) {
             window->closed = true;
-        }
-        else if (event.type == SDL_KEYDOWN && event.key.repeat == 0)
-        {
+        } else if (event.type == SDL_KEYDOWN && event.key.repeat == 0) {
             window->keysHeld[event.key.keysym.scancode] = true;
             window->keysPressed[event.key.keysym.scancode] = true;
-        }
-        else if (event.type == SDL_KEYUP)
-        {
+        } else if (event.type == SDL_KEYUP) {
             window->keysHeld[event.key.keysym.scancode] = false;
-        }
-        else if (event.type == SDL_MOUSEBUTTONDOWN)
-        {
+        } else if (event.type == SDL_MOUSEBUTTONDOWN) {
             window->mouseHeld[event.button.button] = true;
             window->mousePressed[event.button.button] = true;
-        }
-        else if (event.type == SDL_MOUSEBUTTONUP)
-        {
+        } else if (event.type == SDL_MOUSEBUTTONUP) {
             window->mouseHeld[event.button.button] = false;
-        }
-        else if (event.type == SDL_MOUSEMOTION)
-        {
+        } else if (event.type == SDL_MOUSEMOTION) {
             window->mouseX = event.motion.x;
             window->mouseY = event.motion.y;
         }
     }
 }
 
-static void windowKeyHeld(WrenVM *vm)
+static void windowKeyHeld(WrenVM* vm)
 {
-    if (window == NULL)
-    {
+    if (window == NULL) {
         VM_ABORT(vm, "Window not initialized");
         return;
     }
 
     ASSERT_SLOT_TYPE(vm, 1, STRING, "key");
 
-    const char *key = wrenGetSlotString(vm, 1);
+    const char* key = wrenGetSlotString(vm, 1);
     SDL_KeyCode sdlKey = SDL_GetScancodeFromName(key);
 
     wrenSetSlotBool(vm, 0, window->keysHeld[sdlKey]);
 }
 
-static void windowKeyPressed(WrenVM *vm)
+static void windowKeyPressed(WrenVM* vm)
 {
-    if (window == NULL)
-    {
+    if (window == NULL) {
         VM_ABORT(vm, "Window not initialized");
         return;
     }
 
     ASSERT_SLOT_TYPE(vm, 1, STRING, "key");
 
-    const char *key = wrenGetSlotString(vm, 1);
+    const char* key = wrenGetSlotString(vm, 1);
     SDL_KeyCode sdlKey = SDL_GetScancodeFromName(key);
 
     wrenSetSlotBool(vm, 0, window->keysPressed[sdlKey]);
 }
 
-static void windowMouseHeld(WrenVM *vm)
+static void windowMouseHeld(WrenVM* vm)
 {
-    if (window == NULL)
-    {
+    if (window == NULL) {
         VM_ABORT(vm, "Window not initialized");
         return;
     }
@@ -829,10 +784,9 @@ static void windowMouseHeld(WrenVM *vm)
     wrenSetSlotBool(vm, 0, window->mouseHeld[button]);
 }
 
-static void windowMousePressed(WrenVM *vm)
+static void windowMousePressed(WrenVM* vm)
 {
-    if (window == NULL)
-    {
+    if (window == NULL) {
         VM_ABORT(vm, "Window not initialized");
         return;
     }
@@ -844,10 +798,9 @@ static void windowMousePressed(WrenVM *vm)
     wrenSetSlotBool(vm, 0, window->mousePressed[button]);
 }
 
-static void windowWidth(WrenVM *vm)
+static void windowWidth(WrenVM* vm)
 {
-    if (window == NULL)
-    {
+    if (window == NULL) {
         VM_ABORT(vm, "Window not initialized");
         return;
     }
@@ -860,10 +813,9 @@ static void windowWidth(WrenVM *vm)
     wrenSetSlotDouble(vm, 0, width);
 }
 
-static void windowHeight(WrenVM *vm)
+static void windowHeight(WrenVM* vm)
 {
-    if (window == NULL)
-    {
+    if (window == NULL) {
         VM_ABORT(vm, "Window not initialized");
         return;
     }
@@ -876,10 +828,9 @@ static void windowHeight(WrenVM *vm)
     wrenSetSlotDouble(vm, 0, height);
 }
 
-static void windowTitle(WrenVM *vm)
+static void windowTitle(WrenVM* vm)
 {
-    if (window == NULL)
-    {
+    if (window == NULL) {
         VM_ABORT(vm, "Window not initialized");
         return;
     }
@@ -888,10 +839,9 @@ static void windowTitle(WrenVM *vm)
     wrenSetSlotString(vm, 0, SDL_GetWindowTitle(window->window));
 }
 
-static void windowClosed(WrenVM *vm)
+static void windowClosed(WrenVM* vm)
 {
-    if (window == NULL)
-    {
+    if (window == NULL) {
         VM_ABORT(vm, "Window not initialized");
         return;
     }
@@ -900,10 +850,9 @@ static void windowClosed(WrenVM *vm)
     wrenSetSlotBool(vm, 0, window->closed);
 }
 
-static void windowMouseX(WrenVM *vm)
+static void windowMouseX(WrenVM* vm)
 {
-    if (window == NULL)
-    {
+    if (window == NULL) {
         VM_ABORT(vm, "Window not initialized");
         return;
     }
@@ -912,10 +861,9 @@ static void windowMouseX(WrenVM *vm)
     wrenSetSlotDouble(vm, 0, window->mouseX);
 }
 
-static void windowMouseY(WrenVM *vm)
+static void windowMouseY(WrenVM* vm)
 {
-    if (window == NULL)
-    {
+    if (window == NULL) {
         VM_ABORT(vm, "Window not initialized");
         return;
     }
@@ -924,11 +872,10 @@ static void windowMouseY(WrenVM *vm)
     wrenSetSlotDouble(vm, 0, window->mouseY);
 }
 
-static char *readFile(const char *path)
+static char* readFile(const char* path)
 {
-    FILE *file = fopen(path, "rb");
-    if (file == NULL)
-    {
+    FILE* file = fopen(path, "rb");
+    if (file == NULL) {
         printf("Error opening file: %s\n", path);
         return NULL;
     }
@@ -937,16 +884,14 @@ static char *readFile(const char *path)
     long fileSize = ftell(file);
     rewind(file);
 
-    char *buffer = (char *)malloc(fileSize + 1);
-    if (buffer == NULL)
-    {
+    char* buffer = (char*)malloc(fileSize + 1);
+    if (buffer == NULL) {
         printf("Error allocating memory for file: %s\n", path);
         fclose(file);
         return NULL;
     }
 
-    if (fread(buffer, 1, fileSize, file) != fileSize)
-    {
+    if (fread(buffer, 1, fileSize, file) != fileSize) {
         printf("Error reading file: %s\n", path);
         fclose(file);
         free(buffer);
@@ -960,21 +905,20 @@ static char *readFile(const char *path)
     return buffer;
 }
 
-static void onComplete(WrenVM *vm, const char *name, WrenLoadModuleResult result)
+static void onComplete(WrenVM* vm, const char* name, WrenLoadModuleResult result)
 {
     if (result.source)
-        free((void *)result.source);
+        free((void*)result.source);
 }
 
-static WrenLoadModuleResult wrenLoadModule(WrenVM *vm, const char *name)
+static WrenLoadModuleResult wrenLoadModule(WrenVM* vm, const char* name)
 {
-    WrenLoadModuleResult result = {0};
+    WrenLoadModuleResult result = { 0 };
 
     if (strcmp(name, "meta") == 0 || strcmp(name, "random") == 0)
         return result;
 
-    if (strcmp(name, "basil") == 0)
-    {
+    if (strcmp(name, "basil") == 0) {
         result.source = apiModuleSource;
         return result;
     }
@@ -988,10 +932,9 @@ static WrenLoadModuleResult wrenLoadModule(WrenVM *vm, const char *name)
     return result;
 }
 
-static WrenForeignMethodFn wrenBindForeignMethod(WrenVM *vm, const char *module, const char *className, bool isStatic, const char *signature)
+static WrenForeignMethodFn wrenBindForeignMethod(WrenVM* vm, const char* module, const char* className, bool isStatic, const char* signature)
 {
-    if (strcmp(className, "Image") == 0)
-    {
+    if (strcmp(className, "Image") == 0) {
         if (strcmp(signature, "init new(_,_)") == 0)
             return imageNew;
         if (strcmp(signature, "init new(_)") == 0)
@@ -1014,9 +957,7 @@ static WrenForeignMethodFn wrenBindForeignMethod(WrenVM *vm, const char *module,
             return imageWidth;
         if (strcmp(signature, "height") == 0)
             return imageHeight;
-    }
-    else if (strcmp(className, "OS") == 0)
-    {
+    } else if (strcmp(className, "OS") == 0) {
         if (strcmp(signature, "name") == 0)
             return osName;
         if (strcmp(signature, "basilVersion") == 0)
@@ -1025,9 +966,7 @@ static WrenForeignMethodFn wrenBindForeignMethod(WrenVM *vm, const char *module,
             return osArgs;
         if (strcmp(signature, "f_exit(_)") == 0)
             return osExit;
-    }
-    else if (strcmp(className, "Timer") == 0)
-    {
+    } else if (strcmp(className, "Timer") == 0) {
         if (strcmp(signature, "tick()") == 0)
             return timerTick;
         if (strcmp(signature, "tick(_)") == 0)
@@ -1036,9 +975,7 @@ static WrenForeignMethodFn wrenBindForeignMethod(WrenVM *vm, const char *module,
             return timerTime;
         if (strcmp(signature, "delta") == 0)
             return timerDelta;
-    }
-    else if (strcmp(className, "Color") == 0)
-    {
+    } else if (strcmp(className, "Color") == 0) {
         if (strcmp(signature, "init new(_,_,_,_)") == 0)
             return colorNew;
         if (strcmp(signature, "init new(_,_,_)") == 0)
@@ -1061,9 +998,7 @@ static WrenForeignMethodFn wrenBindForeignMethod(WrenVM *vm, const char *module,
             return colorSetB;
         if (strcmp(signature, "a=(_)") == 0)
             return colorSetA;
-    }
-    else if (strcmp(className, "Window") == 0)
-    {
+    } else if (strcmp(className, "Window") == 0) {
         if (strcmp(signature, "init(_,_,_)") == 0)
             return windowInit;
         if (strcmp(signature, "quit()") == 0)
@@ -1095,36 +1030,30 @@ static WrenForeignMethodFn wrenBindForeignMethod(WrenVM *vm, const char *module,
     return NULL;
 }
 
-static WrenForeignClassMethods wrenBindForeignClass(WrenVM *vm, const char *module, const char *className)
+static WrenForeignClassMethods wrenBindForeignClass(WrenVM* vm, const char* module, const char* className)
 {
-    WrenForeignClassMethods methods = {0};
+    WrenForeignClassMethods methods = { 0 };
 
-    if (strcmp(className, "Image") == 0)
-    {
+    if (strcmp(className, "Image") == 0) {
         methods.allocate = imageAllocate;
         methods.finalize = imageFinalize;
-    }
-    else if (strcmp(className, "Timer") == 0)
-    {
+    } else if (strcmp(className, "Timer") == 0) {
         methods.allocate = timerAllocate;
-    }
-    else if (strcmp(className, "Color") == 0)
-    {
+    } else if (strcmp(className, "Color") == 0) {
         methods.allocate = colorAllocate;
     }
 
     return methods;
 }
 
-static void wrenWrite(WrenVM *vm, const char *text)
+static void wrenWrite(WrenVM* vm, const char* text)
 {
     printf("%s", text);
 }
 
-static void wrenError(WrenVM *vm, WrenErrorType type, const char *module, int line, const char *message)
+static void wrenError(WrenVM* vm, WrenErrorType type, const char* module, int line, const char* message)
 {
-    switch (type)
-    {
+    switch (type) {
     case WREN_ERROR_COMPILE:
         printf("[%s line %d] %s\n", module, line, message);
         break;
@@ -1137,56 +1066,48 @@ static void wrenError(WrenVM *vm, WrenErrorType type, const char *module, int li
     }
 }
 
-static const char *strprbrk(const char *s, const char *charset)
+static const char* strprbrk(const char* s, const char* charset)
 {
-    const char *latestMatch = NULL;
-    for (; s = strpbrk(s, charset), s != NULL; latestMatch = s++)
-    {
+    const char* latestMatch = NULL;
+    for (; s = strpbrk(s, charset), s != NULL; latestMatch = s++) {
     }
     return latestMatch;
 }
 
-int main(int argc, char *argv[])
+int main(int argc, char* argv[])
 {
-    if (argc < 2)
-    {
+    if (argc < 2) {
         printf("Usage:\n");
         printf("\tbasil [file] [arguments...]\n");
         printf("\tbasil version\n");
         return 1;
     }
 
-    if (argc == 2 && strcmp(argv[1], "version") == 0)
-    {
+    if (argc == 2 && strcmp(argv[1], "version") == 0) {
         printf("basil %s\n", BASIL_VERSION);
         return 0;
     }
 
-    const char *sourcePath = argv[1];
+    const char* sourcePath = argv[1];
 
-    char *source = readFile(sourcePath);
+    char* source = readFile(sourcePath);
     if (source == NULL)
         return 1;
 
     // find base path from raylib
 
-    if (sourcePath[1] != ':' && sourcePath[0] != '\\' && sourcePath[0] != '/')
-    {
+    if (sourcePath[1] != ':' && sourcePath[0] != '\\' && sourcePath[0] != '/') {
         basePath[0] = '.';
         basePath[1] = '/';
     }
 
-    const char *lastSlash = strprbrk(sourcePath, "\\/");
-    if (lastSlash)
-    {
-        if (lastSlash == sourcePath)
-        {
+    const char* lastSlash = strprbrk(sourcePath, "\\/");
+    if (lastSlash) {
+        if (lastSlash == sourcePath) {
             basePath[0] = sourcePath[0];
             basePath[1] = '\0';
-        }
-        else
-        {
-            char *basePathPtr = basePath;
+        } else {
+            char* basePathPtr = basePath;
             if ((sourcePath[1] != ':') && (sourcePath[0] != '\\') && (sourcePath[0] != '/'))
                 basePathPtr += 2;
             memcpy(basePathPtr, sourcePath, strlen(sourcePath) - (strlen(lastSlash) - 1));
@@ -1197,22 +1118,19 @@ int main(int argc, char *argv[])
     argCount = argc;
     args = argv;
 
-    for (int c = 0; c < 128; c++)
-    {
-        char *bitmap = font8x8_basic[c];
+    for (int c = 0; c < 128; c++) {
+        char* bitmap = font8x8_basic[c];
 
-        defaultFont[c].data = (Color *)malloc(8 * 8 * sizeof(Color));
+        defaultFont[c].data = (Color*)malloc(8 * 8 * sizeof(Color));
         defaultFont[c].width = 8;
         defaultFont[c].height = 8;
 
-        for (int i = 0; i < 8; i++)
-        {
-            for (int j = 0; j < 8; j++)
-            {
+        for (int i = 0; i < 8; i++) {
+            for (int j = 0; j < 8; j++) {
                 if (bitmap[i] & (1 << j))
-                    defaultFont[c].data[i * 8 + j] = (Color){255, 255, 255, 255};
+                    defaultFont[c].data[i * 8 + j] = (Color) { 255, 255, 255, 255 };
                 else
-                    defaultFont[c].data[i * 8 + j] = (Color){0, 0, 0, 0};
+                    defaultFont[c].data[i * 8 + j] = (Color) { 0, 0, 0, 0 };
             }
         }
     }
@@ -1226,7 +1144,7 @@ int main(int argc, char *argv[])
     config.writeFn = wrenWrite;
     config.errorFn = wrenError;
 
-    WrenVM *vm = wrenNewVM(&config);
+    WrenVM* vm = wrenNewVM(&config);
 
     wrenInterpret(vm, sourcePath, source);
 
