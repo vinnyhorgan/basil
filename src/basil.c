@@ -11,7 +11,9 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "lib/stb/stb_image.h"
 
-#include "font8x8_basic.h"
+#include "lib/font/font8x8_basic.h"
+
+#include "icon.h"
 
 #define BASIL_VERSION "0.1.0"
 #define MAX_PATH_LENGTH 256
@@ -654,6 +656,19 @@ static void windowInit(WrenVM* vm)
 
     SDL_SetWindowMinimumSize(window->window, width, height);
     SDL_RenderSetLogicalSize(window->renderer, width, height);
+
+#ifndef _WIN32
+#include "icon.h"
+    SDL_Surface* surf = SDL_CreateRGBSurfaceFrom(
+        (void*)icon_rgba, 64, 64,
+        32, 64 * 4,
+        0x000000ff,
+        0x0000ff00,
+        0x00ff0000,
+        0xff000000);
+    SDL_SetWindowIcon(window->window, surf);
+    SDL_FreeSurface(surf);
+#endif
 }
 
 static void windowQuit(WrenVM* vm)
