@@ -5,6 +5,8 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "lib/stb/stb_image.h"
 
+#include "util.h"
+
 static Window* window = NULL;
 static Image defaultFont[128];
 static int exitCode = 0;
@@ -231,7 +233,7 @@ void imageNew2(WrenVM* vm)
     char* path = (char*)wrenGetSlotString(vm, 1);
 
     char fullPath[MAX_PATH_LENGTH];
-    snprintf(fullPath, MAX_PATH_LENGTH, "%s/%s", getBasePath(), path);
+    snprintf(fullPath, MAX_PATH_LENGTH, "%s/%s", getDirectoryPath(args[1]), path);
 
     image->data = (Color*)stbi_load(fullPath, &image->width, &image->height, NULL, 4);
     if (image->data == NULL) {

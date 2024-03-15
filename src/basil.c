@@ -10,12 +10,7 @@
 
 #include "util.h"
 
-static char basePath[MAX_PATH_LENGTH];
-
-const char* getBasePath()
-{
-    return basePath;
-}
+static const char* basePath = NULL;
 
 static void onComplete(WrenVM* vm, const char* name, WrenLoadModuleResult result)
 {
@@ -202,7 +197,7 @@ int main(int argc, char* argv[])
     if (source == NULL)
         return 1;
 
-    getDirectoryPath(sourcePath, basePath);
+    basePath = getDirectoryPath(sourcePath);
 
     setArgs(argc, argv);
 

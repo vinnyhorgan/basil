@@ -1,7 +1,9 @@
 #ifndef UTIL_H
 #define UTIL_H
 
+#define MAX_PATH_LENGTH 256
+
 char* readFile(const char* path);
-void getDirectoryPath(const char* sourcePath, char* basePath);
+const char* getDirectoryPath(const char* filePath);
 
 #endif

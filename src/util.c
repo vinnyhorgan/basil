@@ -7,8 +7,7 @@
 static const char* strprbrk(const char* s, const char* charset)
 {
     const char* latestMatch = NULL;
-    for (; s = strpbrk(s, charset), s != NULL; latestMatch = s++) {
-    }
+    for (; s = strpbrk(s, charset), s != NULL; latestMatch = s++) { }
     return latestMatch;
 }
 
@@ -16,7 +15,7 @@ char* readFile(const char* path)
 {
     FILE* file = fopen(path, "rb");
     if (file == NULL) {
-        printf("Error opening file: %s\n", path);
+        printf("Error opening file: %s.\n", path);
         return NULL;
     }
 
@@ -26,43 +25,50 @@ char* readFile(const char* path)
 
     char* buffer = (char*)malloc(fileSize + 1);
     if (buffer == NULL) {
-        printf("Error allocating memory for file: %s\n", path);
+        printf("Error allocating memory for file: %s.\n", path);
         fclose(file);
         return NULL;
     }
 
-    if (fread(buffer, 1, fileSize, file) != fileSize) {
-        printf("Error reading file: %s\n", path);
+    size_t bytesRead = fread(buffer, 1, fileSize, file);
+    if (bytesRead < fileSize) {
+        printf("Error reading file: %s.\n", path);
         fclose(file);
         free(buffer);
         return NULL;
     }
 
-    buffer[fileSize] = '\0';
+    buffer[bytesRead] = '\0';
 
     fclose(file);
 
     return buffer;
 }
 
-void getDirectoryPath(const char* sourcePath, char* basePath)
+const char* getDirectoryPath(const char* filePath)
 {
-    if (sourcePath[1] != ':' && sourcePath[0] != '\\' && sourcePath[0] != '/') {
-        basePath[0] = '.';
-        basePath[1] = '/';
+    const char* lastSlash = NULL;
+    static char dirPath[MAX_PATH_LENGTH] = { 0 };
+    memset(dirPath, 0, MAX_PATH_LENGTH);
+
+    if (filePath[1] != ':' && filePath[0] != '\\' && filePath[0] != '/') {
+        dirPath[0] = '.';
+        dirPath[1] = '/';
     }
 
-    const char* lastSlash = strprbrk(sourcePath, "\\/");
+    lastSlash = strprbrk(filePath, "\\/");
     if (lastSlash) {
-        if (lastSlash == sourcePath) {
-            basePath[0] = sourcePath[0];
-            basePath[1] = '\0';
+        if (lastSlash == filePath) {
+            dirPath[0] = filePath[0];
+            dirPath[1] = '\0';
         } else {
-            char* basePathPtr = basePath;
-            if ((sourcePath[1] != ':') && (sourcePath[0] != '\\') && (sourcePath[0] != '/'))
-                basePathPtr += 2;
-            memcpy(basePathPtr, sourcePath, strlen(sourcePath) - (strlen(lastSlash) - 1));
-            basePath[strlen(sourcePath) - strlen(lastSlash) + (((sourcePath[1] != ':') && (sourcePath[0] != '\\') && (sourcePath[0] != '/')) ? 2 : 0)] = '\0';
+            char* dirPathPtr = dirPath;
+            if ((filePath[1] != ':') && (filePath[0] != '\\') && (filePath[0] != '/'))
+                dirPathPtr += 2;
+            memcpy(dirPathPtr, filePath, strlen(filePath) - (strlen(lastSlash) - 1));
+            dirPath[strlen(filePath) - strlen(lastSlash) + (((filePath[1] != ':') && (filePath[0] != '\\') && (filePath[0] != '/')) ? 2 : 0)] = '\0';
         }
     }
+
+    return dirPath;
 }

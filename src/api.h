@@ -21,7 +21,6 @@
     }
 
 #define BASIL_VERSION "0.1.0"
-#define MAX_PATH_LENGTH 256
 
 #define EXPAND(X) ((X) + ((X) > 0))
 
@@ -51,7 +50,6 @@
 
 void setArgs(int argc, char** argv);
 int getExitCode();
-const char* getBasePath();
 
 typedef struct
 {
