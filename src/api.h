@@ -8,20 +8,6 @@
 
 #include "lib/wren/wren.h"
 
-#define VM_ABORT(vm, error)              \
-    do {                                 \
-        wrenSetSlotString(vm, 0, error); \
-        wrenAbortFiber(vm, 0);           \
-    } while (false);
-
-#define ASSERT_SLOT_TYPE(vm, slot, type, fieldName)                       \
-    if (wrenGetSlotType(vm, slot) != WREN_TYPE_##type) {                  \
-        VM_ABORT(vm, "Expected " #fieldName " to be of type " #type "."); \
-        return;                                                           \
-    }
-
-#define BASIL_VERSION "0.1.0"
-
 #define EXPAND(X) ((X) + ((X) > 0))
 
 #define CLIP0(CX, X, X2, W) \
@@ -80,6 +66,9 @@ void imageAllocate(WrenVM* vm);
 void imageFinalize(void* data);
 void imageNew(WrenVM* vm);
 void imageNew2(WrenVM* vm);
+void imageGetWidth(WrenVM* vm);
+void imageGetHeight(WrenVM* vm);
+
 void imageSet(WrenVM* vm);
 void imageGet(WrenVM* vm);
 void imageClear(WrenVM* vm);
@@ -87,8 +76,6 @@ void imageBlit(WrenVM* vm);
 void imageBlitAlpha(WrenVM* vm);
 void imageText(WrenVM* vm);
 void imageFill(WrenVM* vm);
-void imageWidth(WrenVM* vm);
-void imageHeight(WrenVM* vm);
 
 void osName(WrenVM* vm);
 void osBasilVersion(WrenVM* vm);

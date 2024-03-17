@@ -7,12 +7,25 @@
 
 #include "util.h"
 
+#define VM_ABORT(vm, error)              \
+    do {                                 \
+        wrenSetSlotString(vm, 0, error); \
+        wrenAbortFiber(vm, 0);           \
+    } while (false);
+
+#define ASSERT_SLOT_TYPE(vm, slot, type, fieldName)                       \
+    if (wrenGetSlotType(vm, slot) != WREN_TYPE_##type) {                  \
+        VM_ABORT(vm, "Expected " #fieldName " to be of type " #type "."); \
+        return;                                                           \
+    }
+
+static int argCount = 0;
+static char** args = NULL;
+static const char* basePath = NULL;
+
 static Window* window = NULL;
 static Image defaultFont[128];
 static int exitCode = 0;
-
-static int argCount;
-static char** args;
 
 static void setColor(Image* image, int x, int y, Color color)
 {
@@ -73,6 +86,8 @@ void setArgs(int argc, char** argv)
 {
     argCount = argc;
     args = argv;
+
+    basePath = getDirectoryPath(argv[1]);
 }
 
 int getExitCode()
@@ -205,13 +220,13 @@ void imageNew(WrenVM* vm)
     int height = (int)wrenGetSlotDouble(vm, 2);
 
     if (width <= 0 || height <= 0) {
-        VM_ABORT(vm, "Image dimensions must be positive");
+        VM_ABORT(vm, "Image dimensions must be positive.");
         return;
     }
 
-    image->data = (Color*)malloc(width * height * sizeof(Color));
+    image->data = (Color*)calloc(width * height, sizeof(Color));
     if (image->data == NULL) {
-        VM_ABORT(vm, "Error allocating image");
+        VM_ABORT(vm, "Failed to allocate image data.");
         return;
     }
 
@@ -220,39 +235,72 @@ void imageNew(WrenVM* vm)
 
     image->clipX = 0;
     image->clipY = 0;
-    image->clipWidth = width;
-    image->clipHeight = height;
+    image->clipWidth = -1;
+    image->clipHeight = -1;
 }
 
 void imageNew2(WrenVM* vm)
 {
     Image* image = (Image*)wrenGetSlotForeign(vm, 0);
 
-    ASSERT_SLOT_TYPE(vm, 1, STRING, "path");
+    if (wrenGetSlotType(vm, 1) == WREN_TYPE_STRING) {
+        const char* path = wrenGetSlotString(vm, 1);
 
-    char* path = (char*)wrenGetSlotString(vm, 1);
+        char fullPath[MAX_PATH_LENGTH];
+        snprintf(fullPath, MAX_PATH_LENGTH, "%s/%s", basePath, path);
 
-    char fullPath[MAX_PATH_LENGTH];
-    snprintf(fullPath, MAX_PATH_LENGTH, "%s/%s", getDirectoryPath(args[1]), path);
+        image->data = (Color*)stbi_load(fullPath, &image->width, &image->height, NULL, STBI_rgb_alpha);
+        if (image->data == NULL) {
+            VM_ABORT(vm, "Failed to load image data.");
+            return;
+        }
 
-    image->data = (Color*)stbi_load(fullPath, &image->width, &image->height, NULL, 4);
-    if (image->data == NULL) {
-        VM_ABORT(vm, "Error loading image");
+        uint8_t* bytes = (uint8_t*)image->data;
+        int32_t n = image->width * image->height * sizeof(uint32_t);
+        for (int32_t i = 0; i < n; i += 4) {
+            uint8_t b = bytes[i];
+            bytes[i] = bytes[i + 2];
+            bytes[i + 2] = b;
+        }
+
+        image->clipX = 0;
+        image->clipY = 0;
+        image->clipWidth = -1;
+        image->clipHeight = -1;
+    } else if (wrenGetSlotType(vm, 1) == WREN_TYPE_FOREIGN) {
+        Image* toCopy = (Image*)wrenGetSlotForeign(vm, 1);
+
+        image->data = (Color*)calloc(toCopy->width * toCopy->height, sizeof(Color));
+        if (image->data == NULL) {
+            VM_ABORT(vm, "Failed to allocate image data.");
+            return;
+        }
+
+        memcpy(image->data, toCopy->data, toCopy->width * toCopy->height * sizeof(Color));
+
+        image->width = toCopy->width;
+        image->height = toCopy->height;
+
+        image->clipX = 0;
+        image->clipY = 0;
+        image->clipWidth = -1;
+        image->clipHeight = -1;
+    } else {
+        VM_ABORT(vm, "Expected path to be of type STRING or FOREIGN.");
         return;
     }
+}
 
-    uint8_t* bytes = (uint8_t*)image->data;
-    int32_t n = image->width * image->height * sizeof(uint32_t);
-    for (int32_t i = 0; i < n; i += 4) {
-        uint8_t b = bytes[i];
-        bytes[i] = bytes[i + 2];
-        bytes[i + 2] = b;
-    }
+void imageGetWidth(WrenVM* vm)
+{
+    Image* image = (Image*)wrenGetSlotForeign(vm, 0);
+    wrenSetSlotDouble(vm, 0, image->width);
+}
 
-    image->clipX = 0;
-    image->clipY = 0;
-    image->clipWidth = image->width;
-    image->clipHeight = image->height;
+void imageGetHeight(WrenVM* vm)
+{
+    Image* image = (Image*)wrenGetSlotForeign(vm, 0);
+    wrenSetSlotDouble(vm, 0, image->height);
 }
 
 void imageSet(WrenVM* vm)
@@ -427,20 +475,6 @@ void imageFill(WrenVM* vm)
             td[i] = *color;
         td += dt;
     } while (--h);
-}
-
-void imageWidth(WrenVM* vm)
-{
-    Image* image = (Image*)wrenGetSlotForeign(vm, 0);
-
-    wrenSetSlotDouble(vm, 0, image->width);
-}
-
-void imageHeight(WrenVM* vm)
-{
-    Image* image = (Image*)wrenGetSlotForeign(vm, 0);
-
-    wrenSetSlotDouble(vm, 0, image->height);
 }
 
 void osName(WrenVM* vm)

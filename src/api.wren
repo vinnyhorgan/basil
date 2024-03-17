@@ -38,20 +38,60 @@ foreign class Color {
 
 foreign class Image {
     foreign construct new(width, height)
-    foreign construct new(path)
+    foreign construct new(pathOrImage)
 
     foreign width
     foreign height
 
+    toString {
+        return "Image (width: %(width), height: %(height))"
+    }
+
+    //foreign clip(x, y, width, height)
+
+    clip() {
+        clip(0, 0, -1, -1)
+    }
+
+    //foreign unload()
+    //foreign save(path)
+    //foreign resize(width, height)
+
     foreign f_get(x, y)
-    foreign set(x, y, color)
-    foreign clear(color)
-    foreign blit(image, dx, dy, sx, sy, width, height)
-    foreign blitAlpha(image, dx, dy, sx, sy, width, height, tint)
-    foreign text(text, x, y, color)
-    foreign fill(x, y, width, height, color)
 
     get(x, y) { Color.new(f_get(x, y)) }
+
+    foreign set(x, y, color)
+    foreign clear(color)
+    foreign fill(x, y, width, height, color)
+    //foreign line(x0, y0, x1, y1, color)
+    //foreign rect(x, y, width, height, color)
+    //foreign fillRect(x, y, width, height, color)
+    //foreign circle(x, y, radius, color)
+    //foreign fillCircle(x, y, radius, color)
+    //foreign print(text, x, y, color)
+
+    foreign blit(image, dx, dy, sx, sy, width, height)
+
+    blit(image, x, y) {
+        blit(image, x, y, 0, 0, image.width, image.height)
+    }
+
+    foreign blitAlpha(image, dx, dy, sx, sy, width, height, alpha)
+
+    blitAlpha(image, x, y) {
+        blitAlpha(image, x, y, 0, 0, image.width, image.height, Color.white)
+    }
+
+    blitAlpha(image, x, y, alpha) {
+        blitAlpha(image, x, y, 0, 0, image.width, image.height, alpha)
+    }
+
+    //foreign blitTint(image, dx, dy, sx, sy, width, height, tint)
+
+    blitTint(image, x, y, tint) {
+        blitTint(image, x, y, 0, 0, image.width, image.height, tint)
+    }
 }
 
 class OS {
