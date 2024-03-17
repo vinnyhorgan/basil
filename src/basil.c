@@ -56,8 +56,8 @@ static WrenForeignMethodFn wrenBindForeignMethod(WrenVM* vm, const char* module,
             return imageBlit;
         if (strcmp(signature, "blitAlpha(_,_,_,_,_,_,_,_)") == 0)
             return imageBlitAlpha;
-        if (strcmp(signature, "text(_,_,_,_)") == 0)
-            return imageText;
+        if (strcmp(signature, "print(_,_,_,_)") == 0)
+            return imagePrint;
         if (strcmp(signature, "fill(_,_,_,_,_)") == 0)
             return imageFill;
         if (strcmp(signature, "width") == 0)
@@ -70,8 +70,14 @@ static WrenForeignMethodFn wrenBindForeignMethod(WrenVM* vm, const char* module,
             return imageLine;
         if (strcmp(signature, "rect(_,_,_,_,_)") == 0)
             return imageRect;
-        if (strcmp(signature, "unload()") == 0)
-            return imageUnload;
+        if (strcmp(signature, "fillRect(_,_,_,_,_)") == 0)
+            return imageFillRect;
+        if (strcmp(signature, "circle(_,_,_,_)") == 0)
+            return imageCircle;
+        if (strcmp(signature, "fillCircle(_,_,_,_)") == 0)
+            return imageFillCircle;
+        if (strcmp(signature, "blitTint(_,_,_,_,_,_,_,_)") == 0)
+            return imageBlitTint;
     } else if (strcmp(className, "OS") == 0) {
         if (strcmp(signature, "name") == 0)
             return osName;
