@@ -1,25 +1,7 @@
-foreign class Image {
-    foreign construct new(width, height)
-    foreign construct new(path)
-
-    foreign width
-    foreign height
-
-    foreign f_get(x, y)
-    foreign set(x, y, color)
-    foreign clear(color)
-    foreign blit(image, dx, dy, sx, sy, width, height)
-    foreign blitAlpha(image, dx, dy, sx, sy, width, height, tint)
-    foreign text(text, x, y, color)
-    foreign fill(x, y, width, height, color)
-
-    get(x, y) { Color.new(f_get(x, y)) }
-}
-
 foreign class Color {
     foreign construct new(r, g, b, a)
     foreign construct new(r, g, b)
-    foreign construct new(hex)
+    foreign construct new(num)
 
     foreign r
     foreign g
@@ -30,6 +12,10 @@ foreign class Color {
     foreign g=(v)
     foreign b=(v)
     foreign a=(v)
+
+    toString {
+        return "Color (r: %(r), g: %(g), b: %(b), a: %(a))"
+    }
 
     static none { new(0, 0, 0, 0) }
     static black { new(0, 0, 0) }
@@ -48,6 +34,24 @@ foreign class Color {
     static indigo { new(131, 118, 156) }
     static pink { new(255, 119, 168) }
     static peach { new(255, 204, 170) }
+}
+
+foreign class Image {
+    foreign construct new(width, height)
+    foreign construct new(path)
+
+    foreign width
+    foreign height
+
+    foreign f_get(x, y)
+    foreign set(x, y, color)
+    foreign clear(color)
+    foreign blit(image, dx, dy, sx, sy, width, height)
+    foreign blitAlpha(image, dx, dy, sx, sy, width, height, tint)
+    foreign text(text, x, y, color)
+    foreign fill(x, y, width, height, color)
+
+    get(x, y) { Color.new(f_get(x, y)) }
 }
 
 class OS {

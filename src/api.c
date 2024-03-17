@@ -90,10 +90,10 @@ void colorNew(WrenVM* vm)
 {
     Color* color = (Color*)wrenGetSlotForeign(vm, 0);
 
-    ASSERT_SLOT_TYPE(vm, 1, NUM, "red");
-    ASSERT_SLOT_TYPE(vm, 2, NUM, "green");
-    ASSERT_SLOT_TYPE(vm, 3, NUM, "blue");
-    ASSERT_SLOT_TYPE(vm, 4, NUM, "alpha");
+    ASSERT_SLOT_TYPE(vm, 1, NUM, "r");
+    ASSERT_SLOT_TYPE(vm, 2, NUM, "g");
+    ASSERT_SLOT_TYPE(vm, 3, NUM, "b");
+    ASSERT_SLOT_TYPE(vm, 4, NUM, "a");
 
     color->r = (uint8_t)wrenGetSlotDouble(vm, 1);
     color->g = (uint8_t)wrenGetSlotDouble(vm, 2);
@@ -105,9 +105,9 @@ void colorNew2(WrenVM* vm)
 {
     Color* color = (Color*)wrenGetSlotForeign(vm, 0);
 
-    ASSERT_SLOT_TYPE(vm, 1, NUM, "red");
-    ASSERT_SLOT_TYPE(vm, 2, NUM, "green");
-    ASSERT_SLOT_TYPE(vm, 3, NUM, "blue");
+    ASSERT_SLOT_TYPE(vm, 1, NUM, "r");
+    ASSERT_SLOT_TYPE(vm, 2, NUM, "g");
+    ASSERT_SLOT_TYPE(vm, 3, NUM, "b");
 
     color->r = (uint8_t)wrenGetSlotDouble(vm, 1);
     color->g = (uint8_t)wrenGetSlotDouble(vm, 2);
@@ -119,14 +119,14 @@ void colorNew3(WrenVM* vm)
 {
     Color* color = (Color*)wrenGetSlotForeign(vm, 0);
 
-    ASSERT_SLOT_TYPE(vm, 1, NUM, "hex");
+    ASSERT_SLOT_TYPE(vm, 1, NUM, "num");
 
-    uint32_t hex = (uint32_t)wrenGetSlotDouble(vm, 1);
+    uint32_t num = (uint32_t)wrenGetSlotDouble(vm, 1);
 
-    color->r = (uint8_t)(hex >> 16);
-    color->g = (uint8_t)(hex >> 8);
-    color->b = (uint8_t)(hex);
-    color->a = (uint8_t)(hex >> 24);
+    color->r = (uint8_t)(num >> 16);
+    color->g = (uint8_t)(num >> 8);
+    color->b = (uint8_t)(num);
+    color->a = (uint8_t)(num >> 24);
 }
 
 void colorGetR(WrenVM* vm)
