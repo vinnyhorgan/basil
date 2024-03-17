@@ -827,6 +827,7 @@ void osArgs(WrenVM* vm)
 {
     wrenEnsureSlots(vm, 2);
     wrenSetSlotNewList(vm, 0);
+
     for (int i = 0; i < argCount; i++) {
         wrenSetSlotString(vm, 1, args[i]);
         wrenInsertInList(vm, 0, i, 1);
@@ -837,66 +838,6 @@ void osExit(WrenVM* vm)
 {
     ASSERT_SLOT_TYPE(vm, 1, NUM, "code");
     exitCode = (int)wrenGetSlotDouble(vm, 1);
-}
-
-void timerAllocate(WrenVM* vm)
-{
-    wrenEnsureSlots(vm, 1);
-    Timer* timer = (Timer*)wrenSetSlotNewForeign(vm, 0, 0, sizeof(Timer));
-
-    timer->start = SDL_GetPerformanceCounter();
-    timer->lastTick = SDL_GetPerformanceCounter();
-    timer->delta = 0;
-}
-
-void timerTick(WrenVM* vm)
-{
-    Timer* timer = (Timer*)wrenGetSlotForeign(vm, 0);
-
-    uint64_t now = SDL_GetPerformanceCounter();
-    timer->delta = (double)(now - timer->lastTick) / (double)SDL_GetPerformanceFrequency();
-    timer->lastTick = now;
-}
-
-void timerTickFramerate(WrenVM* vm)
-{
-    Timer* timer = (Timer*)wrenGetSlotForeign(vm, 0);
-
-    ASSERT_SLOT_TYPE(vm, 1, NUM, "framerate");
-
-    int framerate = (int)wrenGetSlotDouble(vm, 1);
-    double targetFrameTime = 1.0 / framerate;
-
-    uint64_t now = SDL_GetPerformanceCounter();
-    double elapsed = (double)(now - timer->lastTick) / (double)SDL_GetPerformanceFrequency();
-
-    if (elapsed < targetFrameTime) {
-        double delayTime = targetFrameTime - elapsed;
-        uint32_t delayMS = (uint32_t)(delayTime * 1000.0);
-        SDL_Delay(delayMS);
-
-        now = SDL_GetPerformanceCounter();
-        elapsed = (double)(now - timer->lastTick) / (double)SDL_GetPerformanceFrequency();
-    }
-
-    timer->delta = elapsed;
-    timer->lastTick = now;
-}
-
-void timerTime(WrenVM* vm)
-{
-    Timer* timer = (Timer*)wrenGetSlotForeign(vm, 0);
-
-    float passed = (SDL_GetPerformanceCounter() - timer->start) / (float)SDL_GetPerformanceFrequency();
-
-    wrenSetSlotDouble(vm, 0, passed);
-}
-
-void timerDelta(WrenVM* vm)
-{
-    Timer* timer = (Timer*)wrenGetSlotForeign(vm, 0);
-
-    wrenSetSlotDouble(vm, 0, timer->delta);
 }
 
 void windowInit(WrenVM* vm)
@@ -950,6 +891,9 @@ void windowInit(WrenVM* vm)
 
     SDL_SetWindowMinimumSize(window->window, width, height);
     SDL_RenderSetLogicalSize(window->renderer, width, height);
+
+    window->prevTime = SDL_GetPerformanceCounter();
+    window->targetFps = -1;
 
 #ifndef _WIN32
 #include "icon.h"
@@ -1220,4 +1164,44 @@ void windowSetIntegerScaling(WrenVM* vm)
 
     bool integerScaling = wrenGetSlotBool(vm, 1);
     SDL_RenderSetIntegerScale(window->renderer, integerScaling);
+}
+
+void windowTargetFps(WrenVM* vm)
+{
+    if (window == NULL) {
+        VM_ABORT(vm, "Window not initialized");
+        return;
+    }
+
+    ASSERT_SLOT_TYPE(vm, 1, NUM, "targetFps");
+    window->targetFps = (int)wrenGetSlotDouble(vm, 1);
+}
+
+void windowTime(WrenVM* vm)
+{
+    if (window == NULL) {
+        VM_ABORT(vm, "Window not initialized");
+        return;
+    }
+
+    if (window->targetFps > 0) {
+        double targetTime = 1.0 / window->targetFps;
+
+        uint64_t now = SDL_GetPerformanceCounter();
+        double elapsed = (now - window->prevTime) / (double)SDL_GetPerformanceFrequency();
+
+        if (elapsed < targetTime) {
+            SDL_Delay((uint32_t)((targetTime - elapsed) * 1000.0));
+
+            now = SDL_GetPerformanceCounter();
+            elapsed = (now - window->prevTime) / (double)SDL_GetPerformanceFrequency();
+        }
+
+        wrenSetSlotDouble(vm, 0, elapsed);
+        window->prevTime = now;
+    } else {
+        uint64_t now = SDL_GetPerformanceCounter();
+        wrenSetSlotDouble(vm, 0, (now - window->prevTime) / (double)SDL_GetPerformanceFrequency());
+        window->prevTime = now;
+    }
 }

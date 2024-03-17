@@ -41,62 +41,7 @@ static WrenLoadModuleResult wrenLoadModule(WrenVM* vm, const char* name)
 
 static WrenForeignMethodFn wrenBindForeignMethod(WrenVM* vm, const char* module, const char* className, bool isStatic, const char* signature)
 {
-    if (strcmp(className, "Image") == 0) {
-        if (strcmp(signature, "init new(_,_)") == 0)
-            return imageNew;
-        if (strcmp(signature, "init new(_)") == 0)
-            return imageNew2;
-        if (strcmp(signature, "set(_,_,_)") == 0)
-            return imageSet;
-        if (strcmp(signature, "f_get(_,_)") == 0)
-            return imageGet;
-        if (strcmp(signature, "clear(_)") == 0)
-            return imageClear;
-        if (strcmp(signature, "blit(_,_,_,_,_,_,_)") == 0)
-            return imageBlit;
-        if (strcmp(signature, "blitAlpha(_,_,_,_,_,_,_,_)") == 0)
-            return imageBlitAlpha;
-        if (strcmp(signature, "print(_,_,_,_)") == 0)
-            return imagePrint;
-        if (strcmp(signature, "fill(_,_,_,_,_)") == 0)
-            return imageFill;
-        if (strcmp(signature, "width") == 0)
-            return imageGetWidth;
-        if (strcmp(signature, "height") == 0)
-            return imageGetHeight;
-        if (strcmp(signature, "clip(_,_,_,_)") == 0)
-            return imageClip;
-        if (strcmp(signature, "line(_,_,_,_,_)") == 0)
-            return imageLine;
-        if (strcmp(signature, "rect(_,_,_,_,_)") == 0)
-            return imageRect;
-        if (strcmp(signature, "fillRect(_,_,_,_,_)") == 0)
-            return imageFillRect;
-        if (strcmp(signature, "circle(_,_,_,_)") == 0)
-            return imageCircle;
-        if (strcmp(signature, "fillCircle(_,_,_,_)") == 0)
-            return imageFillCircle;
-        if (strcmp(signature, "blitTint(_,_,_,_,_,_,_,_)") == 0)
-            return imageBlitTint;
-    } else if (strcmp(className, "OS") == 0) {
-        if (strcmp(signature, "name") == 0)
-            return osName;
-        if (strcmp(signature, "basilVersion") == 0)
-            return osBasilVersion;
-        if (strcmp(signature, "args") == 0)
-            return osArgs;
-        if (strcmp(signature, "f_exit(_)") == 0)
-            return osExit;
-    } else if (strcmp(className, "Timer") == 0) {
-        if (strcmp(signature, "tick()") == 0)
-            return timerTick;
-        if (strcmp(signature, "tick(_)") == 0)
-            return timerTickFramerate;
-        if (strcmp(signature, "time") == 0)
-            return timerTime;
-        if (strcmp(signature, "delta") == 0)
-            return timerDelta;
-    } else if (strcmp(className, "Color") == 0) {
+    if (strcmp(className, "Color") == 0) {
         if (strcmp(signature, "init new(_,_,_,_)") == 0)
             return colorNew;
         if (strcmp(signature, "init new(_,_,_)") == 0)
@@ -119,6 +64,52 @@ static WrenForeignMethodFn wrenBindForeignMethod(WrenVM* vm, const char* module,
             return colorSetB;
         if (strcmp(signature, "a=(_)") == 0)
             return colorSetA;
+    } else if (strcmp(className, "Image") == 0) {
+        if (strcmp(signature, "init new(_,_)") == 0)
+            return imageNew;
+        if (strcmp(signature, "init new(_)") == 0)
+            return imageNew2;
+        if (strcmp(signature, "width") == 0)
+            return imageGetWidth;
+        if (strcmp(signature, "height") == 0)
+            return imageGetHeight;
+        if (strcmp(signature, "clip(_,_,_,_)") == 0)
+            return imageClip;
+        if (strcmp(signature, "f_get(_,_)") == 0)
+            return imageGet;
+        if (strcmp(signature, "set(_,_,_)") == 0)
+            return imageSet;
+        if (strcmp(signature, "clear(_)") == 0)
+            return imageClear;
+        if (strcmp(signature, "fill(_,_,_,_,_)") == 0)
+            return imageFill;
+        if (strcmp(signature, "line(_,_,_,_,_)") == 0)
+            return imageLine;
+        if (strcmp(signature, "rect(_,_,_,_,_)") == 0)
+            return imageRect;
+        if (strcmp(signature, "fillRect(_,_,_,_,_)") == 0)
+            return imageFillRect;
+        if (strcmp(signature, "circle(_,_,_,_)") == 0)
+            return imageCircle;
+        if (strcmp(signature, "fillCircle(_,_,_,_)") == 0)
+            return imageFillCircle;
+        if (strcmp(signature, "print(_,_,_,_)") == 0)
+            return imagePrint;
+        if (strcmp(signature, "blit(_,_,_,_,_,_,_)") == 0)
+            return imageBlit;
+        if (strcmp(signature, "blitAlpha(_,_,_,_,_,_,_,_)") == 0)
+            return imageBlitAlpha;
+        if (strcmp(signature, "blitTint(_,_,_,_,_,_,_,_)") == 0)
+            return imageBlitTint;
+    } else if (strcmp(className, "OS") == 0) {
+        if (strcmp(signature, "name") == 0)
+            return osName;
+        if (strcmp(signature, "basilVersion") == 0)
+            return osBasilVersion;
+        if (strcmp(signature, "args") == 0)
+            return osArgs;
+        if (strcmp(signature, "f_exit(_)") == 0)
+            return osExit;
     } else if (strcmp(className, "Window") == 0) {
         if (strcmp(signature, "init(_,_,_)") == 0)
             return windowInit;
@@ -150,6 +141,10 @@ static WrenForeignMethodFn wrenBindForeignMethod(WrenVM* vm, const char* module,
             return windowGetIntegerScaling;
         if (strcmp(signature, "integerScaling=(_)") == 0)
             return windowSetIntegerScaling;
+        if (strcmp(signature, "time()") == 0)
+            return windowTime;
+        if (strcmp(signature, "targetFps=(_)") == 0)
+            return windowTargetFps;
     }
 
     return NULL;
@@ -159,13 +154,11 @@ static WrenForeignClassMethods wrenBindForeignClass(WrenVM* vm, const char* modu
 {
     WrenForeignClassMethods methods = { 0 };
 
-    if (strcmp(className, "Image") == 0) {
+    if (strcmp(className, "Color") == 0) {
+        methods.allocate = colorAllocate;
+    } else if (strcmp(className, "Image") == 0) {
         methods.allocate = imageAllocate;
         methods.finalize = imageFinalize;
-    } else if (strcmp(className, "Timer") == 0) {
-        methods.allocate = timerAllocate;
-    } else if (strcmp(className, "Color") == 0) {
-        methods.allocate = colorAllocate;
     }
 
     return methods;

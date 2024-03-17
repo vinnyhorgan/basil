@@ -1,4 +1,4 @@
-import "basil" for Color, Image, OS, Timer, Window
+import "basil" for Color, Image, OS, Window
 import "random" for Random
 
 var random = Random.new()
@@ -29,8 +29,7 @@ var screenHeight = 240
 
 var screen = Image.new(screenWidth, screenHeight)
 Window.init("Squinklemark", screenWidth * 2, screenHeight * 2)
-
-var timer = Timer.new()
+Window.targetFps = 60
 
 var squinkleImage = Image.new("../assets/squinkle.png")
 
@@ -73,15 +72,14 @@ while (!Window.closed) {
     screen.clear(Color.white)
 
     for (s in squinkles) {
-        screen.blitAlpha(squinkleImage, s.x, s.y, 0, 0, squinkleImage.width, squinkleImage.height, s.color)
+        screen.blitTint(squinkleImage, s.x, s.y, 0, 0, squinkleImage.width, squinkleImage.height, s.color)
     }
 
     screen.fill(0, 0, screenWidth, 28, Color.black)
 
-    screen.text("FPS: %((1 / timer.delta).ceil) Squinkles: %(squinkles.count)", 10, 10, Color.white)
+    screen.print("FPS: %((1 / Window.time()).ceil) Squinkles: %(squinkles.count)", 10, 10, Color.white)
 
     Window.update(screen)
-    timer.tick(60)
 }
 
 Window.quit()

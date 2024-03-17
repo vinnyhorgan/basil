@@ -64,19 +64,6 @@ void osExit(WrenVM* vm);
 
 typedef struct
 {
-    uint64_t start;
-    uint64_t lastTick;
-    double delta;
-} Timer;
-
-void timerAllocate(WrenVM* vm);
-void timerTick(WrenVM* vm);
-void timerTickFramerate(WrenVM* vm);
-void timerTime(WrenVM* vm);
-void timerDelta(WrenVM* vm);
-
-typedef struct
-{
     SDL_Window* window;
     SDL_Renderer* renderer;
     SDL_Texture* screen;
@@ -87,6 +74,8 @@ typedef struct
     bool mouseHeld[5];
     bool mousePressed[5];
     int mouseX, mouseY;
+    uint64_t prevTime;
+    int targetFps;
 } Window;
 
 void windowInit(WrenVM* vm);
@@ -104,5 +93,7 @@ void windowMouseX(WrenVM* vm);
 void windowMouseY(WrenVM* vm);
 void windowGetIntegerScaling(WrenVM* vm);
 void windowSetIntegerScaling(WrenVM* vm);
+void windowTime(WrenVM* vm);
+void windowTargetFps(WrenVM* vm);
 
 #endif

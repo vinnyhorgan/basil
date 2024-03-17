@@ -101,6 +101,7 @@ class OS {
     foreign static name
     foreign static basilVersion
     foreign static args
+
     foreign static f_exit(code)
 
     static exit(code) {
@@ -111,16 +112,6 @@ class OS {
     static exit() {
         exit(0)
     }
-}
-
-foreign class Timer {
-    construct new() {}
-
-    foreign tick()
-    foreign tick(framerate)
-
-    foreign time
-    foreign delta
 }
 
 class Window {
@@ -141,4 +132,7 @@ class Window {
 
     foreign static integerScaling
     foreign static integerScaling=(v)
+
+    foreign static time()
+    foreign static targetFps=(v)
 }
