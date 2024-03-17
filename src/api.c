@@ -19,6 +19,8 @@
         return;                                                           \
     }
 
+#define EXPAND(X) ((X) + ((X) > 0))
+
 static int argCount = 0;
 static char** args = NULL;
 static const char* basePath = NULL;
@@ -26,27 +28,6 @@ static const char* basePath = NULL;
 static Window* window = NULL;
 static Image defaultFont[128];
 static int exitCode = 0;
-
-static void setColor(Image* image, int x, int y, Color color)
-{
-    int xa, i, a;
-
-    int cx = image->clipX;
-    int cy = image->clipY;
-    int cw = image->clipWidth >= 0 ? image->clipWidth : image->width;
-    int ch = image->clipHeight >= 0 ? image->clipHeight : image->height;
-
-    if (x >= cx && y >= cy && x < cx + cw && y < cy + ch) {
-        xa = EXPAND(color.a);
-        a = xa * xa;
-        i = y * image->width + x;
-
-        image->data[i].r += (uint8_t)((color.r - image->data[i].r) * a >> 16);
-        image->data[i].g += (uint8_t)((color.g - image->data[i].g) * a >> 16);
-        image->data[i].b += (uint8_t)((color.b - image->data[i].b) * a >> 16);
-        image->data[i].a += (uint8_t)((color.a - image->data[i].a) * a >> 16);
-    }
-}
 
 static void blitTint(Image* image, Image* src, int dx, int dy, int sx, int sy, int width, int height, Color tint)
 {
@@ -286,7 +267,7 @@ void imageNew2(WrenVM* vm)
         image->clipWidth = -1;
         image->clipHeight = -1;
     } else {
-        VM_ABORT(vm, "Expected path to be of type STRING or FOREIGN.");
+        VM_ABORT(vm, "Expected \"path\" to be of type STRING or FOREIGN.");
         return;
     }
 }
@@ -303,19 +284,32 @@ void imageGetHeight(WrenVM* vm)
     wrenSetSlotDouble(vm, 0, image->height);
 }
 
-void imageSet(WrenVM* vm)
+void imageClip(WrenVM* vm)
 {
     Image* image = (Image*)wrenGetSlotForeign(vm, 0);
 
     ASSERT_SLOT_TYPE(vm, 1, NUM, "x");
     ASSERT_SLOT_TYPE(vm, 2, NUM, "y");
-    ASSERT_SLOT_TYPE(vm, 3, FOREIGN, "color");
+    ASSERT_SLOT_TYPE(vm, 3, NUM, "width");
+    ASSERT_SLOT_TYPE(vm, 4, NUM, "height");
 
     int x = (int)wrenGetSlotDouble(vm, 1);
     int y = (int)wrenGetSlotDouble(vm, 2);
-    Color* color = (Color*)wrenGetSlotForeign(vm, 3);
+    int width = (int)wrenGetSlotDouble(vm, 3);
+    int height = (int)wrenGetSlotDouble(vm, 4);
 
-    setColor(image, x, y, *color);
+    image->clipX = x;
+    image->clipY = y;
+    image->clipWidth = width;
+    image->clipHeight = height;
+}
+
+void imageUnload(WrenVM* vm)
+{
+    Image* image = (Image*)wrenGetSlotForeign(vm, 0);
+
+    free(image->data);
+    image->data = NULL;
 }
 
 void imageGet(WrenVM* vm)
@@ -336,6 +330,42 @@ void imageGet(WrenVM* vm)
     wrenSetSlotDouble(vm, 0, (color.a << 24) | (color.r << 16) | (color.g << 8) | color.b);
 }
 
+static void setColor(Image* image, int x, int y, Color color)
+{
+    int xa, i, a;
+
+    int cx = image->clipX;
+    int cy = image->clipY;
+    int cw = image->clipWidth >= 0 ? image->clipWidth : image->width;
+    int ch = image->clipHeight >= 0 ? image->clipHeight : image->height;
+
+    if (x >= cx && y >= cy && x < cx + cw && y < cy + ch) {
+        xa = EXPAND(color.a);
+        a = xa * xa;
+        i = y * image->width + x;
+
+        image->data[i].r += (uint8_t)((color.r - image->data[i].r) * a >> 16);
+        image->data[i].g += (uint8_t)((color.g - image->data[i].g) * a >> 16);
+        image->data[i].b += (uint8_t)((color.b - image->data[i].b) * a >> 16);
+        image->data[i].a += (uint8_t)((color.a - image->data[i].a) * a >> 16);
+    }
+}
+
+void imageSet(WrenVM* vm)
+{
+    Image* image = (Image*)wrenGetSlotForeign(vm, 0);
+
+    ASSERT_SLOT_TYPE(vm, 1, NUM, "x");
+    ASSERT_SLOT_TYPE(vm, 2, NUM, "y");
+    ASSERT_SLOT_TYPE(vm, 3, FOREIGN, "color");
+
+    int x = (int)wrenGetSlotDouble(vm, 1);
+    int y = (int)wrenGetSlotDouble(vm, 2);
+    Color* color = (Color*)wrenGetSlotForeign(vm, 3);
+
+    setColor(image, x, y, *color);
+}
+
 void imageClear(WrenVM* vm)
 {
     Image* image = (Image*)wrenGetSlotForeign(vm, 0);
@@ -349,6 +379,149 @@ void imageClear(WrenVM* vm)
     int n;
     for (n = 0; n < count; n++)
         image->data[n] = *color;
+}
+
+void imageFill(WrenVM* vm)
+{
+    Image* image = (Image*)wrenGetSlotForeign(vm, 0);
+
+    ASSERT_SLOT_TYPE(vm, 1, NUM, "x");
+    ASSERT_SLOT_TYPE(vm, 2, NUM, "y");
+    ASSERT_SLOT_TYPE(vm, 3, NUM, "width");
+    ASSERT_SLOT_TYPE(vm, 4, NUM, "height");
+    ASSERT_SLOT_TYPE(vm, 5, FOREIGN, "color");
+
+    int x = (int)wrenGetSlotDouble(vm, 1);
+    int y = (int)wrenGetSlotDouble(vm, 2);
+    int width = (int)wrenGetSlotDouble(vm, 3);
+    int height = (int)wrenGetSlotDouble(vm, 4);
+    Color* color = (Color*)wrenGetSlotForeign(vm, 5);
+
+    Color* td;
+    int dt, i;
+
+    if (x < 0) {
+        width += x;
+        x = 0;
+    }
+
+    if (y < 0) {
+        height += y;
+        y = 0;
+    }
+
+    if (x + width > image->width) {
+        width = image->width - x;
+    }
+
+    if (y + height > image->height) {
+        height = image->height - y;
+    }
+
+    if (width <= 0 || height <= 0)
+        return;
+
+    td = &image->data[y * image->width + x];
+    dt = image->width;
+
+    do {
+        for (i = 0; i < width; i++)
+            td[i] = *color;
+
+        td += dt;
+    } while (--height);
+}
+
+static void line(Image* image, int x0, int y0, int x1, int y1, Color color)
+{
+    int sx, sy, dx, dy, err, e2;
+
+    dx = abs(x1 - x0);
+    dy = abs(y1 - y0);
+
+    if (x0 < x1)
+        sx = 1;
+    else
+        sx = -1;
+
+    if (y0 < y1)
+        sy = 1;
+    else
+        sy = -1;
+
+    err = dx - dy;
+
+    do {
+        setColor(image, x0, y0, color);
+
+        e2 = 2 * err;
+
+        if (e2 > -dy) {
+            err -= dy;
+            x0 += sx;
+        }
+
+        if (e2 < dx) {
+            err += dx;
+            y0 += sy;
+        }
+    } while (x0 != x1 || y0 != y1);
+}
+
+void imageLine(WrenVM* vm)
+{
+    Image* image = (Image*)wrenGetSlotForeign(vm, 0);
+
+    ASSERT_SLOT_TYPE(vm, 1, NUM, "x0");
+    ASSERT_SLOT_TYPE(vm, 2, NUM, "y0");
+    ASSERT_SLOT_TYPE(vm, 3, NUM, "x1");
+    ASSERT_SLOT_TYPE(vm, 4, NUM, "y1");
+    ASSERT_SLOT_TYPE(vm, 5, FOREIGN, "color");
+
+    int x0 = (int)wrenGetSlotDouble(vm, 1);
+    int y0 = (int)wrenGetSlotDouble(vm, 2);
+    int x1 = (int)wrenGetSlotDouble(vm, 3);
+    int y1 = (int)wrenGetSlotDouble(vm, 4);
+    Color* color = (Color*)wrenGetSlotForeign(vm, 5);
+
+    line(image, x0, y0, x1, y1, *color);
+}
+
+void imageRect(WrenVM* vm)
+{
+    Image* image = (Image*)wrenGetSlotForeign(vm, 0);
+
+    ASSERT_SLOT_TYPE(vm, 1, NUM, "x");
+    ASSERT_SLOT_TYPE(vm, 2, NUM, "y");
+    ASSERT_SLOT_TYPE(vm, 3, NUM, "width");
+    ASSERT_SLOT_TYPE(vm, 4, NUM, "height");
+    ASSERT_SLOT_TYPE(vm, 5, FOREIGN, "color");
+
+    int x = (int)wrenGetSlotDouble(vm, 1);
+    int y = (int)wrenGetSlotDouble(vm, 2);
+    int width = (int)wrenGetSlotDouble(vm, 3);
+    int height = (int)wrenGetSlotDouble(vm, 4);
+    Color* color = (Color*)wrenGetSlotForeign(vm, 5);
+
+    int x1, y1;
+
+    if (width <= 0 || height <= 0) {
+        return;
+    }
+
+    if (width == 1) {
+        line(image, x, y, x, y + height, *color);
+    } else if (height == 1) {
+        line(image, x, y, x + width, y, *color);
+    } else {
+        x1 = x + width - 1;
+        y1 = y + height - 1;
+
+        line(image, x, y, x1, y, *color);
+        line(image, x1, y, x1, y1, *color);
+        line(image, x1, y1, x, y1, *color);
+        line(image, x, y1, x, y, *color);
+    }
 }
 
 void imageBlit(WrenVM* vm)
@@ -429,52 +602,6 @@ void imageText(WrenVM* vm)
 
     for (int i = 0; i < strlen(text); i++)
         blitTint(image, &defaultFont[text[i]], x + i * 8, y, 0, 0, 8, 8, *color);
-}
-
-void imageFill(WrenVM* vm)
-{
-    Image* image = (Image*)wrenGetSlotForeign(vm, 0);
-
-    ASSERT_SLOT_TYPE(vm, 1, NUM, "x");
-    ASSERT_SLOT_TYPE(vm, 2, NUM, "y");
-    ASSERT_SLOT_TYPE(vm, 3, NUM, "width");
-    ASSERT_SLOT_TYPE(vm, 4, NUM, "height");
-    ASSERT_SLOT_TYPE(vm, 5, FOREIGN, "color");
-
-    int x = (int)wrenGetSlotDouble(vm, 1);
-    int y = (int)wrenGetSlotDouble(vm, 2);
-    int w = (int)wrenGetSlotDouble(vm, 3);
-    int h = (int)wrenGetSlotDouble(vm, 4);
-    Color* color = (Color*)wrenGetSlotForeign(vm, 5);
-
-    Color* td;
-    int dt, i;
-
-    if (x < 0) {
-        w += x;
-        x = 0;
-    }
-    if (y < 0) {
-        h += y;
-        y = 0;
-    }
-    if (x + w > image->width) {
-        w = image->width - x;
-    }
-    if (y + h > image->height) {
-        h = image->height - y;
-    }
-    if (w <= 0 || h <= 0)
-        return;
-
-    td = &image->data[y * image->width + x];
-    dt = image->width;
-
-    do {
-        for (i = 0; i < w; i++)
-            td[i] = *color;
-        td += dt;
-    } while (--h);
 }
 
 void osName(WrenVM* vm)

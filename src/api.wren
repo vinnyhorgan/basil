@@ -47,13 +47,13 @@ foreign class Image {
         return "Image (width: %(width), height: %(height))"
     }
 
-    //foreign clip(x, y, width, height)
+    foreign clip(x, y, width, height)
 
     clip() {
         clip(0, 0, -1, -1)
     }
 
-    //foreign unload()
+    foreign unload()
     //foreign save(path)
     //foreign resize(width, height)
 
@@ -64,8 +64,8 @@ foreign class Image {
     foreign set(x, y, color)
     foreign clear(color)
     foreign fill(x, y, width, height, color)
-    //foreign line(x0, y0, x1, y1, color)
-    //foreign rect(x, y, width, height, color)
+    foreign line(x0, y0, x1, y1, color)
+    foreign rect(x, y, width, height, color)
     //foreign fillRect(x, y, width, height, color)
     //foreign circle(x, y, radius, color)
     //foreign fillCircle(x, y, radius, color)

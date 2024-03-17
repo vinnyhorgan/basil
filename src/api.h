@@ -8,8 +8,6 @@
 
 #include "lib/wren/wren.h"
 
-#define EXPAND(X) ((X) + ((X) > 0))
-
 #define CLIP0(CX, X, X2, W) \
     if (X < CX) {           \
         int D = CX - X;     \
@@ -68,14 +66,18 @@ void imageNew(WrenVM* vm);
 void imageNew2(WrenVM* vm);
 void imageGetWidth(WrenVM* vm);
 void imageGetHeight(WrenVM* vm);
-
-void imageSet(WrenVM* vm);
+void imageClip(WrenVM* vm);
+void imageUnload(WrenVM* vm);
 void imageGet(WrenVM* vm);
+void imageSet(WrenVM* vm);
 void imageClear(WrenVM* vm);
+void imageFill(WrenVM* vm);
+void imageLine(WrenVM* vm);
+void imageRect(WrenVM* vm);
+
 void imageBlit(WrenVM* vm);
 void imageBlitAlpha(WrenVM* vm);
 void imageText(WrenVM* vm);
-void imageFill(WrenVM* vm);
 
 void osName(WrenVM* vm);
 void osBasilVersion(WrenVM* vm);

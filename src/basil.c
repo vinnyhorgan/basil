@@ -64,6 +64,14 @@ static WrenForeignMethodFn wrenBindForeignMethod(WrenVM* vm, const char* module,
             return imageGetWidth;
         if (strcmp(signature, "height") == 0)
             return imageGetHeight;
+        if (strcmp(signature, "clip(_,_,_,_)") == 0)
+            return imageClip;
+        if (strcmp(signature, "line(_,_,_,_,_)") == 0)
+            return imageLine;
+        if (strcmp(signature, "rect(_,_,_,_,_)") == 0)
+            return imageRect;
+        if (strcmp(signature, "unload()") == 0)
+            return imageUnload;
     } else if (strcmp(className, "OS") == 0) {
         if (strcmp(signature, "name") == 0)
             return osName;
