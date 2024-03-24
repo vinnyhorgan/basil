@@ -59,6 +59,23 @@ void setArgs(int argc, char** argv)
     args = argv;
 
     basePath = getDirectoryPath(argv[1]);
+
+    for (int c = 0; c < 128; c++) {
+        char* bitmap = font8x8_basic[c];
+
+        defaultFont[c].data = (Color*)malloc(8 * 8 * sizeof(Color));
+        defaultFont[c].width = 8;
+        defaultFont[c].height = 8;
+
+        for (int i = 0; i < 8; i++) {
+            for (int j = 0; j < 8; j++) {
+                if (bitmap[i] & (1 << j))
+                    defaultFont[c].data[i * 8 + j] = (Color) { 255, 255, 255, 255 };
+                else
+                    defaultFont[c].data[i * 8 + j] = (Color) { 0, 0, 0, 0 };
+            }
+        }
+    }
 }
 
 int getExitCode()
@@ -907,23 +924,6 @@ void windowInit(WrenVM* vm)
     SDL_SetWindowIcon(window->window, surf);
     SDL_FreeSurface(surf);
 #endif
-
-    for (int c = 0; c < 128; c++) {
-        char* bitmap = font8x8_basic[c];
-
-        defaultFont[c].data = (Color*)malloc(8 * 8 * sizeof(Color));
-        defaultFont[c].width = 8;
-        defaultFont[c].height = 8;
-
-        for (int i = 0; i < 8; i++) {
-            for (int j = 0; j < 8; j++) {
-                if (bitmap[i] & (1 << j))
-                    defaultFont[c].data[i * 8 + j] = (Color) { 255, 255, 255, 255 };
-                else
-                    defaultFont[c].data[i * 8 + j] = (Color) { 0, 0, 0, 0 };
-            }
-        }
-    }
 }
 
 void windowQuit(WrenVM* vm)

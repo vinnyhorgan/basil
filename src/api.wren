@@ -61,7 +61,13 @@ foreign class Image {
     get(x, y) { Color.new(f_get(x, y)) }
 
     foreign set(x, y, color)
+
     foreign clear(color)
+
+    clear() {
+        clear(Color.black)
+    }
+
     foreign fill(x, y, width, height, color)
     foreign line(x0, y0, x1, y1, color)
     foreign rect(x, y, width, height, color)
