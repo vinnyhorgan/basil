@@ -39,6 +39,7 @@ foreign class Color {
 foreign class Image {
     foreign construct new(width, height)
     foreign construct new(pathOrImage)
+    foreign construct new(font, text, size)
 
     foreign width
     foreign height

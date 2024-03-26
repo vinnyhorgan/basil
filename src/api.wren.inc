@@ -41,6 +41,7 @@ static const char* apiModuleSource =
 "foreign class Image {\n"
 "    foreign construct new(width, height)\n"
 "    foreign construct new(pathOrImage)\n"
+"    foreign construct new(font, text, size)\n"
 "\n"
 "    foreign width\n"
 "    foreign height\n"

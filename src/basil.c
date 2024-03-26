@@ -69,6 +69,8 @@ static WrenForeignMethodFn wrenBindForeignMethod(WrenVM* vm, const char* module,
             return imageNew;
         if (strcmp(signature, "init new(_)") == 0)
             return imageNew2;
+        if (strcmp(signature, "init new(_,_,_)") == 0)
+            return imageNew3;
         if (strcmp(signature, "width") == 0)
             return imageGetWidth;
         if (strcmp(signature, "height") == 0)

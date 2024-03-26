@@ -5,6 +5,9 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "lib/stb/stb_image.h"
 
+#define STB_TRUETYPE_IMPLEMENTATION
+#include "lib/stb/stb_truetype.h"
+
 #include "util.h"
 
 #define VM_ABORT(vm, error)              \
@@ -277,6 +280,105 @@ void imageNew2(WrenVM* vm)
         VM_ABORT(vm, "Expected \"path\" to be of type STRING or FOREIGN.");
         return;
     }
+}
+
+void imageNew3(WrenVM* vm)
+{
+    Image* image = (Image*)wrenGetSlotForeign(vm, 0);
+
+    ASSERT_SLOT_TYPE(vm, 1, STRING, "font");
+    ASSERT_SLOT_TYPE(vm, 2, STRING, "text");
+    ASSERT_SLOT_TYPE(vm, 3, NUM, "size");
+
+    const char* font = wrenGetSlotString(vm, 1);
+    const char* text = wrenGetSlotString(vm, 2);
+    int sizeText = (int)wrenGetSlotDouble(vm, 3);
+
+    char fullPath[MAX_PATH_LENGTH];
+    snprintf(fullPath, MAX_PATH_LENGTH, "%s/%s", basePath, font);
+
+    /* load font file */
+    long size;
+    unsigned char* fontBuffer;
+
+    FILE* fontFile = fopen(fullPath, "rb");
+    fseek(fontFile, 0, SEEK_END);
+    size = ftell(fontFile); /* how long is the file ? */
+    fseek(fontFile, 0, SEEK_SET); /* reset */
+
+    fontBuffer = malloc(size);
+
+    fread(fontBuffer, size, 1, fontFile);
+    fclose(fontFile);
+
+    /* prepare font */
+    stbtt_fontinfo info;
+    if (!stbtt_InitFont(&info, fontBuffer, 0)) {
+        printf("failed\n");
+    }
+
+    int b_w = 512; /* bitmap width */
+    int b_h = 128; /* bitmap height */
+    int l_h = sizeText; /* line height */
+
+    /* create a bitmap for the phrase */
+    unsigned char* bitmap = calloc(b_w * b_h, sizeof(unsigned char));
+
+    /* calculate font scaling */
+    float scale = stbtt_ScaleForPixelHeight(&info, l_h);
+
+    int x = 0;
+
+    int ascent, descent, lineGap;
+    stbtt_GetFontVMetrics(&info, &ascent, &descent, &lineGap);
+
+    ascent = roundf(ascent * scale);
+    descent = roundf(descent * scale);
+
+    int i;
+    for (i = 0; i < strlen(text); ++i) {
+        /* how wide is this character */
+        int ax;
+        int lsb;
+        stbtt_GetCodepointHMetrics(&info, text[i], &ax, &lsb);
+        /* (Note that each Codepoint call has an alternative Glyph version which caches the work required to lookup the character word[i].) */
+
+        /* get bounding box for character (may be offset to account for chars that dip above or below the line) */
+        int c_x1, c_y1, c_x2, c_y2;
+        stbtt_GetCodepointBitmapBox(&info, text[i], scale, scale, &c_x1, &c_y1, &c_x2, &c_y2);
+
+        /* compute y (different characters have different heights) */
+        int y = ascent + c_y1;
+
+        /* render character (stride and offset is important here) */
+        int byteOffset = x + roundf(lsb * scale) + (y * b_w);
+        stbtt_MakeCodepointBitmap(&info, bitmap + byteOffset, c_x2 - c_x1, c_y2 - c_y1, b_w, scale, scale, text[i]);
+
+        /* advance x */
+        x += roundf(ax * scale);
+
+        /* add kerning */
+        int kern;
+        kern = stbtt_GetCodepointKernAdvance(&info, text[i], text[i + 1]);
+        x += roundf(kern * scale);
+    }
+
+    image->data = calloc(b_w * b_h, sizeof(Color));
+
+    for (int y = 0; y < b_h; y++) {
+        for (int x = 0; x < b_w; x++) {
+            unsigned char c = bitmap[y * b_w + x];
+            image->data[y * b_w + x] = (Color) { 255, 255, 255, c };
+        }
+    }
+
+    image->width = b_w;
+    image->height = b_h;
+
+    image->clipX = 0;
+    image->clipY = 0;
+    image->clipWidth = -1;
+    image->clipHeight = -1;
 }
 
 void imageGetWidth(WrenVM* vm)
