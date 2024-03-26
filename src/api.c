@@ -183,6 +183,66 @@ void colorSetA(WrenVM* vm)
     color->a = (uint8_t)wrenGetSlotDouble(vm, 1);
 }
 
+void fontAllocate(WrenVM* vm)
+{
+    wrenEnsureSlots(vm, 1);
+    wrenSetSlotNewForeign(vm, 0, 0, sizeof(Font));
+}
+
+void fontFinalize(void* data)
+{
+    Font* font = (Font*)data;
+
+    if (font->data == NULL)
+        return;
+
+    free(font->data);
+    font->data = NULL;
+}
+
+void fontNew(WrenVM* vm)
+{
+    Font* font = (Font*)wrenGetSlotForeign(vm, 0);
+
+    ASSERT_SLOT_TYPE(vm, 1, STRING, "path");
+    ASSERT_SLOT_TYPE(vm, 2, NUM, "size");
+
+    const char* path = wrenGetSlotString(vm, 1);
+    int size = (int)wrenGetSlotDouble(vm, 2);
+
+    char fullPath[MAX_PATH_LENGTH];
+    snprintf(fullPath, MAX_PATH_LENGTH, "%s/%s", basePath, path);
+
+    FILE* file = fopen(fullPath, "rb");
+    if (file == NULL) {
+        VM_ABORT(vm, "Failed to open font file.");
+        return;
+    }
+
+    fseek(file, 0, SEEK_END);
+    long fileSize = ftell(file);
+    rewind(file);
+
+    font->data = (uint8_t*)malloc(fileSize);
+    if (font->data == NULL) {
+        fclose(file);
+        VM_ABORT(vm, "Failed to allocate font data.");
+        return;
+    }
+
+    size_t bytesRead = fread(font->data, 1, fileSize, file);
+    if (bytesRead < fileSize) {
+        fclose(file);
+        free(font->data);
+        VM_ABORT(vm, "Failed to read font data.");
+        return;
+    }
+
+    fclose(file);
+
+    font->size = size;
+}
+
 void imageAllocate(WrenVM* vm)
 {
     wrenEnsureSlots(vm, 1);
@@ -204,30 +264,109 @@ void imageNew(WrenVM* vm)
 {
     Image* image = (Image*)wrenGetSlotForeign(vm, 0);
 
-    ASSERT_SLOT_TYPE(vm, 1, NUM, "width");
-    ASSERT_SLOT_TYPE(vm, 2, NUM, "height");
+    if (wrenGetSlotType(vm, 1) == WREN_TYPE_NUM && wrenGetSlotType(vm, 2) == WREN_TYPE_NUM) {
+        int width = (int)wrenGetSlotDouble(vm, 1);
+        int height = (int)wrenGetSlotDouble(vm, 2);
 
-    int width = (int)wrenGetSlotDouble(vm, 1);
-    int height = (int)wrenGetSlotDouble(vm, 2);
+        if (width <= 0 || height <= 0) {
+            VM_ABORT(vm, "Image dimensions must be positive.");
+            return;
+        }
 
-    if (width <= 0 || height <= 0) {
-        VM_ABORT(vm, "Image dimensions must be positive.");
+        image->data = (Color*)calloc(width * height, sizeof(Color));
+        if (image->data == NULL) {
+            VM_ABORT(vm, "Failed to allocate image data.");
+            return;
+        }
+
+        image->width = width;
+        image->height = height;
+
+        image->clipX = 0;
+        image->clipY = 0;
+        image->clipWidth = -1;
+        image->clipHeight = -1;
+    } else if (wrenGetSlotType(vm, 1) == WREN_TYPE_FOREIGN && wrenGetSlotType(vm, 2) == WREN_TYPE_STRING) {
+        Font* font = (Font*)wrenGetSlotForeign(vm, 1);
+        const char* text = wrenGetSlotString(vm, 2);
+
+        stbtt_fontinfo info;
+        if (!stbtt_InitFont(&info, font->data, 0)) {
+            VM_ABORT(vm, "Failed to initialize font.");
+            return;
+        }
+
+        int bitmapW, bitmapH;
+
+        float scale = stbtt_ScaleForPixelHeight(&info, font->size);
+
+        int ascent, descent, lineGap;
+        stbtt_GetFontVMetrics(&info, &ascent, &descent, &lineGap);
+
+        ascent = roundf(ascent * scale);
+        descent = roundf(descent * scale);
+
+        // simple bitmap size calculation
+
+        bitmapW = 0;
+
+        for (int i = 0; i < strlen(text); ++i) {
+            int ax;
+            int lsb;
+            stbtt_GetCodepointHMetrics(&info, text[i], &ax, &lsb);
+            bitmapW += roundf(ax * scale);
+        }
+
+        bitmapH = font->size;
+
+        // end
+
+        uint8_t* bitmap = (uint8_t*)calloc(bitmapW * bitmapH, sizeof(uint8_t));
+
+        int x = 0;
+
+        for (int i = 0; i < strlen(text); ++i) {
+            int ax;
+            int lsb;
+            stbtt_GetCodepointHMetrics(&info, text[i], &ax, &lsb);
+
+            int cX1, cY1, cX2, cY2;
+            stbtt_GetCodepointBitmapBox(&info, text[i], scale, scale, &cX1, &cY1, &cX2, &cY2);
+
+            int y = ascent + cY1;
+
+            int byteOffset = x + roundf(lsb * scale) + (y * bitmapW);
+            stbtt_MakeCodepointBitmap(&info, bitmap + byteOffset, cX2 - cX1, cY2 - cY1, bitmapW, scale, scale, text[i]);
+
+            x += roundf(ax * scale);
+
+            int kern;
+            kern = stbtt_GetCodepointKernAdvance(&info, text[i], text[i + 1]);
+            x += roundf(kern * scale);
+        }
+
+        image->data = (Color*)calloc(bitmapW * bitmapH, sizeof(Color));
+
+        for (int y = 0; y < bitmapH; y++) {
+            for (int x = 0; x < bitmapW; x++) {
+                unsigned char c = bitmap[y * bitmapW + x];
+                image->data[y * bitmapW + x] = (Color) { 255, 255, 255, c };
+            }
+        }
+
+        free(bitmap);
+
+        image->width = bitmapW;
+        image->height = bitmapH;
+
+        image->clipX = 0;
+        image->clipY = 0;
+        image->clipWidth = -1;
+        image->clipHeight = -1;
+    } else {
+        VM_ABORT(vm, "Expected arguments to be of type NUM and NUM or FOREIGN and STRING.");
         return;
     }
-
-    image->data = (Color*)calloc(width * height, sizeof(Color));
-    if (image->data == NULL) {
-        VM_ABORT(vm, "Failed to allocate image data.");
-        return;
-    }
-
-    image->width = width;
-    image->height = height;
-
-    image->clipX = 0;
-    image->clipY = 0;
-    image->clipWidth = -1;
-    image->clipHeight = -1;
 }
 
 void imageNew2(WrenVM* vm)
@@ -277,108 +416,9 @@ void imageNew2(WrenVM* vm)
         image->clipWidth = -1;
         image->clipHeight = -1;
     } else {
-        VM_ABORT(vm, "Expected \"path\" to be of type STRING or FOREIGN.");
+        VM_ABORT(vm, "Expected argument to be of type STRING or FOREIGN.");
         return;
     }
-}
-
-void imageNew3(WrenVM* vm)
-{
-    Image* image = (Image*)wrenGetSlotForeign(vm, 0);
-
-    ASSERT_SLOT_TYPE(vm, 1, STRING, "font");
-    ASSERT_SLOT_TYPE(vm, 2, STRING, "text");
-    ASSERT_SLOT_TYPE(vm, 3, NUM, "size");
-
-    const char* font = wrenGetSlotString(vm, 1);
-    const char* text = wrenGetSlotString(vm, 2);
-    int sizeText = (int)wrenGetSlotDouble(vm, 3);
-
-    char fullPath[MAX_PATH_LENGTH];
-    snprintf(fullPath, MAX_PATH_LENGTH, "%s/%s", basePath, font);
-
-    /* load font file */
-    long size;
-    unsigned char* fontBuffer;
-
-    FILE* fontFile = fopen(fullPath, "rb");
-    fseek(fontFile, 0, SEEK_END);
-    size = ftell(fontFile); /* how long is the file ? */
-    fseek(fontFile, 0, SEEK_SET); /* reset */
-
-    fontBuffer = malloc(size);
-
-    fread(fontBuffer, size, 1, fontFile);
-    fclose(fontFile);
-
-    /* prepare font */
-    stbtt_fontinfo info;
-    if (!stbtt_InitFont(&info, fontBuffer, 0)) {
-        printf("failed\n");
-    }
-
-    int b_w = 512; /* bitmap width */
-    int b_h = 128; /* bitmap height */
-    int l_h = sizeText; /* line height */
-
-    /* create a bitmap for the phrase */
-    unsigned char* bitmap = calloc(b_w * b_h, sizeof(unsigned char));
-
-    /* calculate font scaling */
-    float scale = stbtt_ScaleForPixelHeight(&info, l_h);
-
-    int x = 0;
-
-    int ascent, descent, lineGap;
-    stbtt_GetFontVMetrics(&info, &ascent, &descent, &lineGap);
-
-    ascent = roundf(ascent * scale);
-    descent = roundf(descent * scale);
-
-    int i;
-    for (i = 0; i < strlen(text); ++i) {
-        /* how wide is this character */
-        int ax;
-        int lsb;
-        stbtt_GetCodepointHMetrics(&info, text[i], &ax, &lsb);
-        /* (Note that each Codepoint call has an alternative Glyph version which caches the work required to lookup the character word[i].) */
-
-        /* get bounding box for character (may be offset to account for chars that dip above or below the line) */
-        int c_x1, c_y1, c_x2, c_y2;
-        stbtt_GetCodepointBitmapBox(&info, text[i], scale, scale, &c_x1, &c_y1, &c_x2, &c_y2);
-
-        /* compute y (different characters have different heights) */
-        int y = ascent + c_y1;
-
-        /* render character (stride and offset is important here) */
-        int byteOffset = x + roundf(lsb * scale) + (y * b_w);
-        stbtt_MakeCodepointBitmap(&info, bitmap + byteOffset, c_x2 - c_x1, c_y2 - c_y1, b_w, scale, scale, text[i]);
-
-        /* advance x */
-        x += roundf(ax * scale);
-
-        /* add kerning */
-        int kern;
-        kern = stbtt_GetCodepointKernAdvance(&info, text[i], text[i + 1]);
-        x += roundf(kern * scale);
-    }
-
-    image->data = calloc(b_w * b_h, sizeof(Color));
-
-    for (int y = 0; y < b_h; y++) {
-        for (int x = 0; x < b_w; x++) {
-            unsigned char c = bitmap[y * b_w + x];
-            image->data[y * b_w + x] = (Color) { 255, 255, 255, c };
-        }
-    }
-
-    image->width = b_w;
-    image->height = b_h;
-
-    image->clipX = 0;
-    image->clipY = 0;
-    image->clipWidth = -1;
-    image->clipHeight = -1;
 }
 
 void imageGetWidth(WrenVM* vm)

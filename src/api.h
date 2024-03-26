@@ -31,6 +31,16 @@ void colorSetA(WrenVM* vm);
 
 typedef struct
 {
+    int size;
+    uint8_t* data;
+} Font;
+
+void fontAllocate(WrenVM* vm);
+void fontFinalize(void* data);
+void fontNew(WrenVM* vm);
+
+typedef struct
+{
     int width, height;
     int clipX, clipY, clipWidth, clipHeight;
     Color* data;
@@ -40,7 +50,6 @@ void imageAllocate(WrenVM* vm);
 void imageFinalize(void* data);
 void imageNew(WrenVM* vm);
 void imageNew2(WrenVM* vm);
-void imageNew3(WrenVM* vm);
 void imageGetWidth(WrenVM* vm);
 void imageGetHeight(WrenVM* vm);
 void imageClip(WrenVM* vm);

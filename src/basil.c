@@ -64,13 +64,14 @@ static WrenForeignMethodFn wrenBindForeignMethod(WrenVM* vm, const char* module,
             return colorSetB;
         if (strcmp(signature, "a=(_)") == 0)
             return colorSetA;
+    } else if (strcmp(className, "Font") == 0) {
+        if (strcmp(signature, "init new(_,_)") == 0)
+            return fontNew;
     } else if (strcmp(className, "Image") == 0) {
         if (strcmp(signature, "init new(_,_)") == 0)
             return imageNew;
         if (strcmp(signature, "init new(_)") == 0)
             return imageNew2;
-        if (strcmp(signature, "init new(_,_,_)") == 0)
-            return imageNew3;
         if (strcmp(signature, "width") == 0)
             return imageGetWidth;
         if (strcmp(signature, "height") == 0)
@@ -158,6 +159,9 @@ static WrenForeignClassMethods wrenBindForeignClass(WrenVM* vm, const char* modu
 
     if (strcmp(className, "Color") == 0) {
         methods.allocate = colorAllocate;
+    } else if (strcmp(className, "Font") == 0) {
+        methods.allocate = fontAllocate;
+        methods.finalize = fontFinalize;
     } else if (strcmp(className, "Image") == 0) {
         methods.allocate = imageAllocate;
         methods.finalize = imageFinalize;

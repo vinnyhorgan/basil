@@ -36,10 +36,13 @@ foreign class Color {
     static peach { new(255, 204, 170) }
 }
 
+foreign class Font {
+    foreign construct new(path, size)
+}
+
 foreign class Image {
-    foreign construct new(width, height)
+    foreign construct new(widthOrFont, heightOrText)
     foreign construct new(pathOrImage)
-    foreign construct new(font, text, size)
 
     foreign width
     foreign height
